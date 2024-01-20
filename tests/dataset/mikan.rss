@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0">
+	<channel>
+		<title>
+			Mikan Project - 葬送的芙莉莲
+		</title>
+		<link>
+			http://mikanani.me/RSS/Bangumi?bangumiId=3141&amp;subgroupid=370
+		</link>
+		<description>
+			Mikan Project - 葬送的芙莉莲
+		</description>
+		<item>
+			<guid isPermaLink="false">
+				[喵萌奶茶屋&amp;LoliHouse] 葬送的芙莉莲 / Sousou no Frieren - 18 [WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]
+			</guid>
+			<link>
+				https://mikanani.me/Home/Episode/059724511d60173251b378b04709aceff92fffb5
+			</link>
+			<title>
+				[喵萌奶茶屋&amp;LoliHouse] 葬送的芙莉莲 / Sousou no Frieren - 18 [WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]
+			</title>
+			<description>
+				[喵萌奶茶屋&amp;LoliHouse] 葬送的芙莉莲 / Sousou no Frieren - 18 [WebRip 1080p HEVC-10bit AAC][简繁日内封字幕][634.12 MB]
+			</description>
+			<torrent xmlns="https://mikanani.me/0.1/">
+				<link>
+					https://mikanani.me/Home/Episode/059724511d60173251b378b04709aceff92fffb5
+				</link>
+				<contentLength>
+					664923008
+				</contentLength>
+				<pubDate>
+					2024-01-18T06:57:43.93
+				</pubDate>
+			</torrent>
+			<enclosure type="application/x-bittorrent" length="664923008" url="https://mikanani.me/Download/20240118/059724511d60173251b378b04709aceff92fffb5.torrent" />
+		</item>
+		<item>
+			<guid isPermaLink="false">
+				[喵萌奶茶屋&amp;LoliHouse] 葬送的芙莉莲 / Sousou no Frieren - 17 [WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]
+			</guid>
+			<link>
+				https://mikanani.me/Home/Episode/872ab5abd72ea223d2a2e36688cc96f83bb71d42
+			</link>
+			<title>
+				[喵萌奶茶屋&amp;LoliHouse] 葬送的芙莉莲 / Sousou no Frieren - 17 [WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]
+			</title>
+			<description>
+				[喵萌奶茶屋&amp;LoliHouse] 葬送的芙莉莲 / Sousou no Frieren - 17 [WebRip 1080p HEVC-10bit AAC][简繁日内封字幕][639.78 MB]
+			</description>
+			<torrent xmlns="https://mikanani.me/0.1/">
+				<link>
+					https://mikanani.me/Home/Episode/872ab5abd72ea223d2a2e36688cc96f83bb71d42
+				</link>
+				<contentLength>
+					670857984
+				</contentLength>
+				<pubDate>
+					2024-01-11T06:57:59.057
+				</pubDate>
+			</torrent>
+			<enclosure type="application/x-bittorrent" length="670857984" url="https://mikanani.me/Download/20240111/872ab5abd72ea223d2a2e36688cc96f83bb71d42.torrent" />
+		</item>
+	</channel>
+</rss>

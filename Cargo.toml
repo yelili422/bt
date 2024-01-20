@@ -2,7 +2,13 @@
 name = "bt"
 version = "0.1.0"
 edition = "2021"
+authors = ["YeLi <i@yeli.io>"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+regex = "1.10.3"
+reqwest = "0.11.23"
+serde = { version = "1.0.195", features = ["derive"] }
+serde-xml-rs = "0.6.0"
+tokio = "1.35.1"
