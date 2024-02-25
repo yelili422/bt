@@ -1,31 +1,49 @@
-#[derive(Debug, PartialEq, Eq)]
+mod qbitorrent;
+
+use derive_builder::Builder;
+
+use crate::rss::RssSubscriptionItem;
+
+#[derive(Debug, PartialEq, Eq, Builder, Default)]
+#[builder(setter(into, strip_option), default)]
 pub struct Torrent {
-    pub url: String,
-    pub content_len: u64,
-    pub pub_date: String,
+    url: Option<String>,
+    content_len: Option<u64>,
+    pub_date: Option<String>,
+    save_path: Option<String>,
+    category: Option<String>,
 }
 
-impl Torrent {
-    pub fn new(url: String, content_len: u64, pub_date: String) -> Self {
-        Self {
-            url,
-            content_len,
-            pub_date,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct DownloadError(String);
-
-impl std::ops::Deref for DownloadError {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
+#[derive(Debug)]
+pub enum DownloaderError {
+    InvalidAuthentication(String),
+    UnknownError(String),
 }
 
 pub trait Downloader {
-    async fn download(&self, url: &str) -> Result<String, DownloadError>;
+    async fn download(&self, torrent: Torrent) -> Result<(), DownloaderError>;
+}
+
+#[derive(Default, Builder, Debug, PartialEq, Eq)]
+#[builder(setter(into))]
+pub struct TvRules {
+    pub show_name: String,
+    pub episode_name: String,
+    pub display_name: String,
+    pub season: u64,
+    pub episode: u64,
+    pub category: String,
+}
+
+impl From<&RssSubscriptionItem> for TvRules {
+    fn from(s: &RssSubscriptionItem) -> Self {
+        TvRulesBuilder::default()
+            .show_name(s.title.clone())
+            .episode_name(s.episode_title.clone())
+            .display_name(s.media_info.clone())
+            .season(s.season)
+            .episode(s.episode)
+            .build()
+            .unwrap()
+    }
 }

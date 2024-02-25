@@ -7,8 +7,10 @@ authors = ["YeLi <i@yeli.io>"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+derive_builder = "0.20.0"
+qbittorrent = { path = "../qbittorrent", features = ["tokio"] }
 regex = "1.10.3"
 reqwest = "0.11.23"
 serde = { version = "1.0.195", features = ["derive"] }
 serde-xml-rs = "0.6.0"
-tokio = "1.35.1"
+tokio = { version = "1.35.1", features = ["full"] }

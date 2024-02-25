@@ -4,6 +4,7 @@ use reqwest::Client;
 
 use super::RssSubscription;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum ParsingError {
     DownloadFailed(String, String),
