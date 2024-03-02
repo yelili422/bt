@@ -1,6 +1,7 @@
 mod mikan;
 
 use super::RssSubscription;
+pub use mikan::MikanParser;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -10,6 +11,7 @@ pub enum ParsingError {
     UnrecognizedEpisode(String),
 }
 
+#[allow(async_fn_in_trait)]
 pub trait RssParser {
     fn parse_content(&self, content: &str) -> Result<RssSubscription, ParsingError>;
 
@@ -31,8 +33,9 @@ pub trait RssParser {
     }
 }
 
-pub async fn parse(url: &str) -> Result<RssSubscription, ParsingError> {
-    // TODO: now we only have mikan parser
-    let parser = mikan::MikanParser::new();
-    parser.parse(url).await
+pub async fn parse<'a, P>(rss: &super::Rss<'a, P>) -> Result<RssSubscription, ParsingError>
+where
+    P: RssParser,
+{
+    rss.parser.parse(&rss.url).await
 }

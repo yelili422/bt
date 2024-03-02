@@ -1,2 +1,2 @@
-pub mod rss;
 mod downloader;
+pub mod rss;

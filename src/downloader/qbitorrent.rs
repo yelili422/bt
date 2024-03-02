@@ -6,6 +6,7 @@ struct QBittorrentDownloader {
     address: String,
 }
 
+#[allow(unused)]
 impl QBittorrentDownloader {
     fn new(username: &str, password: &str, address: &str) -> Self {
         Self {
@@ -62,7 +63,7 @@ impl Downloader for QBittorrentDownloader {
     }
 }
 
-#[allow(unused_imports)]
+#[allow(unused_imports, unused)]
 mod tests {
     use core::time;
 
@@ -71,11 +72,7 @@ mod tests {
     use super::QBittorrentDownloader;
 
     async fn get_downloader() -> Result<QBittorrentDownloader, DownloaderError> {
-        Ok(QBittorrentDownloader::new(
-            "admin",
-            "adminadmin",
-            "http://localhost:8080",
-        ))
+        Ok(QBittorrentDownloader::new("admin", "adminadmin", "http://localhost:8080"))
     }
 
     #[tokio::test]

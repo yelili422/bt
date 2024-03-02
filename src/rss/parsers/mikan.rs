@@ -2,10 +2,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{downloader, rss};
 
-pub(crate) struct MikanParser {}
+pub struct MikanParser {}
 
 impl MikanParser {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {}
     }
 }

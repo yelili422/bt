@@ -1,7 +1,25 @@
 pub mod parsers;
 
 use crate::downloader::Torrent;
+use crate::rss::parsers::RssParser;
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct Rss<'a, Parser> {
+    parser: &'a Parser,
+    pub url: String,
+    pub title: Option<String>,
+}
+
+impl<'a, Parser> Rss<'a, Parser>
+where
+    Parser: RssParser,
+{
+    pub fn new(url: String, title: Option<String>, parser: &'a Parser) -> Self {
+        Rss { parser, url, title }
+    }
+}
+
+/// The rss subscription content struct
 #[derive(Debug, PartialEq, Eq)]
 pub struct RssSubscription {
     pub url: String,
