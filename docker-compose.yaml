@@ -1,0 +1,25 @@
+version: '3.8'
+services:
+  qbittorrent:
+    container_name: qbittorrent
+    ports:
+      - 8080:8080
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - UMASK=002
+      - TZ=Etc/UTC
+      - WEBUI_PORTS=8080/tcp,8080/udp
+    volumes:
+      - ./data/qb/config:/config
+      - ./data/qb/data:/data
+    image: ghcr.io/hotio/qbittorrent
+  postgres:
+    container_name: postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    image: postgres:16.2
