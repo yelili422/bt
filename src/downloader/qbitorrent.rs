@@ -62,6 +62,7 @@ impl Downloader for QBittorrentDownloader {
     }
 }
 
+#[allow(unused_imports)]
 mod tests {
     use core::time;
 

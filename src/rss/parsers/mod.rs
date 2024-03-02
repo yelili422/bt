@@ -1,6 +1,4 @@
-pub mod mikan;
-
-use reqwest::Client;
+mod mikan;
 
 use super::RssSubscription;
 
@@ -16,7 +14,7 @@ pub trait RssParser {
     fn parse_content(&self, content: &str) -> Result<RssSubscription, ParsingError>;
 
     async fn parse(&self, url: &str) -> Result<RssSubscription, ParsingError> {
-        let client = Client::builder()
+        let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(10))
             .build()
             .unwrap();
@@ -31,4 +29,10 @@ pub trait RssParser {
         };
         self.parse_content(&content)
     }
+}
+
+pub async fn parse(url: &str) -> Result<RssSubscription, ParsingError> {
+    // TODO: now we only have mikan parser
+    let parser = mikan::MikanParser::new();
+    parser.parse(url).await
 }

@@ -5,7 +5,7 @@ use crate::{downloader, rss};
 pub(crate) struct MikanParser {}
 
 impl MikanParser {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {}
     }
 }
