@@ -18,4 +18,7 @@ serde = { version = "1.0.195", features = ["derive"] }
 serde-xml-rs = "0.6.0"
 tokio = { version = "1.35.1", features = ["full"] }
 sqlx = { version = "0.7.3", features = ["runtime-tokio-native-tls", "sqlite"] }
+dotenv = "0.15.0"
 clap = { version = "4.5.1", features = ["derive"] }
+anyhow = { version = "1.0.44", features = ["std"] }
+log = "0.4.21"

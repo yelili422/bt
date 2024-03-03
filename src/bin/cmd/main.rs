@@ -1,6 +1,5 @@
-use bt::rss;
-use bt::rss::parsers;
-use bt::rss::parsers::MikanParser;
+mod rss_cmd;
+
 use clap::{Parser, Subcommand};
 
 // The Bangumi Tools CLI
@@ -13,16 +12,7 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    Rss(RssSubcommand),
-}
-
-/// The RSS command
-#[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
-struct RssSubcommand {
-    /// Url of rss feed
-    #[arg(value_name = "URL")]
-    url: String,
+    Rss(rss_cmd::RssSubcommand),
 }
 
 fn main() {
@@ -32,17 +22,7 @@ fn main() {
 
         match args.command {
             Commands::Rss(subcommand) => {
-                // TODO: now we only support mikan parser
-                let parser = MikanParser::new();
-                let rss = rss::Rss::new(subcommand.url, None, &parser);
-                match parsers::parse(&rss).await {
-                    Ok(feed) => {
-                        println!("{:#?}", feed);
-                    }
-                    Err(e) => {
-                        eprintln!("{:?}", e);
-                    }
-                }
+                rss_cmd::execute(subcommand).await;
             }
         }
     });
