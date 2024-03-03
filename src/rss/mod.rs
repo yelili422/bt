@@ -1,4 +1,5 @@
 pub mod parsers;
+mod store;
 
 use crate::downloader::Torrent;
 use crate::rss::parsers::RssParser;

@@ -14,12 +14,3 @@ services:
       - ./data/qb/config:/config
       - ./data/qb/data:/data
     image: ghcr.io/hotio/qbittorrent
-  postgres:
-    container_name: postgres
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=postgres
-    volumes:
-      - ./data/postgres:/var/lib/postgresql/data
-    image: postgres:16.2
