@@ -1,10 +1,11 @@
 mod qbitorrent;
 
 use derive_builder::Builder;
+use serde::{Deserialize, Serialize};
 
 use crate::rss::RssSubscriptionItem;
 
-#[derive(Debug, PartialEq, Eq, Builder, Default)]
+#[derive(Debug, PartialEq, Eq, Builder, Default, Serialize, Deserialize)]
 #[builder(setter(into, strip_option), default)]
 pub struct Torrent {
     url: Option<String>,

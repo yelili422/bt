@@ -1,14 +1,16 @@
+use crate::rss::RssType;
 use derive_builder::Builder;
 use log::info;
 use sqlx::{query, SqlitePool};
+use std::str::FromStr;
 
-#[derive(Debug, Default, Builder)]
-#[builder(setter(into), default)]
+#[derive(Debug, Builder)]
+#[builder(setter(into))]
 pub struct RssEntity {
     id: Option<i64>,
-    url: String,
-    title: Option<String>,
-    rss_type: String,
+    pub url: String,
+    pub title: Option<String>,
+    pub rss_type: RssType,
 }
 
 pub async fn add_rss(pool: &SqlitePool, rss: &RssEntity) -> Result<i64, sqlx::Error> {
@@ -28,6 +30,7 @@ WHERE url = ?1
         return Ok(rec.unwrap().id);
     }
 
+    let rss_type = rss.rss_type.to_string();
     let id = query!(
         r#"
 INSERT INTO main.rss (url, title, rss_type)
@@ -35,7 +38,7 @@ VALUES (?1, ?2, ?3)
         "#,
         rss.url,
         rss.title,
-        rss.rss_type,
+        rss_type,
     )
     .execute(pool)
     .await?
@@ -60,7 +63,7 @@ FROM main.rss
             id: Some(rec.id),
             url: rec.url,
             title: rec.title,
-            rss_type: rec.rss_type,
+            rss_type: RssType::from_str(&rec.rss_type).unwrap(),
         })
         .collect())
 }

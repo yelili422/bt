@@ -1,5 +1,5 @@
-use std::env;
 use sqlx::sqlite;
+use std::env;
 
 mod downloader;
 pub mod rss;

@@ -15,15 +15,13 @@ enum Commands {
     Rss(rss_cmd::RssSubcommand),
 }
 
-fn main() {
-    let rt = tokio::runtime::Runtime::new().unwrap();
+fn main() -> anyhow::Result<()> {
+    let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async {
         let args = Cli::parse();
 
         match args.command {
-            Commands::Rss(subcommand) => {
-                rss_cmd::execute(subcommand).await;
-            }
+            Commands::Rss(subcommand) => rss_cmd::execute(subcommand).await,
         }
-    });
+    })
 }

@@ -1,6 +1,7 @@
 mod mikan;
 
-use super::RssSubscription;
+use super::{RssSubscription, RssType};
+use async_trait::async_trait;
 pub use mikan::MikanParser;
 
 #[allow(dead_code)]
@@ -11,8 +12,9 @@ pub enum ParsingError {
     UnrecognizedEpisode(String),
 }
 
+#[async_trait]
 #[allow(async_fn_in_trait)]
-pub trait RssParser {
+pub trait RssParser: Send + Sync {
     fn parse_content(&self, content: &str) -> Result<RssSubscription, ParsingError>;
 
     async fn parse(&self, url: &str) -> Result<RssSubscription, ParsingError> {
@@ -33,9 +35,12 @@ pub trait RssParser {
     }
 }
 
-pub async fn parse<'a, P>(rss: &super::Rss<'a, P>) -> Result<RssSubscription, ParsingError>
-where
-    P: RssParser,
-{
-    rss.parser.parse(&rss.url).await
+pub async fn parse(rss: &super::Rss) -> Result<RssSubscription, ParsingError> {
+    get_parser(&rss.rss_type).parse(rss.url.as_str()).await
+}
+
+pub fn get_parser(rss_type: &RssType) -> Box<dyn RssParser> {
+    match rss_type {
+        RssType::Mikan => Box::new(MikanParser::new()),
+    }
 }
