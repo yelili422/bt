@@ -1,18 +1,33 @@
 mod qbitorrent;
+mod store;
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 
-use crate::rss::RssSubscriptionItem;
-
+/// The metadata of a torrent file
 #[derive(Debug, PartialEq, Eq, Builder, Default, Serialize, Deserialize)]
 #[builder(setter(into, strip_option), default)]
-pub struct Torrent {
+pub struct TorrentMeta {
+    /// The url of the torrent file
     url: Option<String>,
+    /// The content of the torrent file
+    data: Option<Vec<u8>>,
     content_len: Option<u64>,
     pub_date: Option<String>,
     save_path: Option<String>,
     category: Option<String>,
+}
+
+impl TorrentMeta {
+    async fn download_content(&self) -> anyhow::Result<Vec<u8>> {
+        if let Some(url) = &self.url {
+            let response = reqwest::get(url).await?;
+            let content = response.bytes().await?;
+            Ok(content.to_vec())
+        } else {
+            panic!("Empty torrent URL cannot be downloaded")
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -22,29 +37,16 @@ pub enum DownloaderError {
 }
 
 pub trait Downloader {
-    async fn download(&self, torrent: Torrent) -> Result<(), DownloaderError>;
+    async fn download(&self, torrent: TorrentMeta) -> Result<(), DownloaderError>;
 }
 
-#[derive(Default, Builder, Debug, PartialEq, Eq)]
-#[builder(setter(into))]
-pub struct TvRules {
-    pub show_name: String,
-    pub episode_name: String,
-    pub display_name: String,
-    pub season: u64,
-    pub episode: u64,
-    pub category: String,
-}
-
-impl From<&RssSubscriptionItem> for TvRules {
-    fn from(s: &RssSubscriptionItem) -> Self {
-        TvRulesBuilder::default()
-            .show_name(s.title.clone())
-            .episode_name(s.episode_title.clone())
-            .display_name(s.media_info.clone())
-            .season(s.season)
-            .episode(s.episode)
-            .build()
-            .unwrap()
+pub async fn download_with_state<T: Downloader>(
+    downloader: T,
+    torrents: Vec<TorrentMeta>,
+) -> Result<(), DownloaderError> {
+    for torrent in torrents {
+        downloader.download(torrent).await?;
     }
+
+    Ok(())
 }

@@ -98,7 +98,7 @@ impl super::RssParser for MikanParser {
                     // - [GJ.Y] 欢迎来到实力至上主义的教室 第三季 / Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e 3rd Season - 03 (B-Global 3840x2160 HEVC AAC MKV)
                     // - [GJ.Y] 弱角友崎同学 2nd STAGE / Jaku-Chara Tomozaki-kun 2nd Stage - 03 (CR 1920x1080 AVC AAC MKV)
 
-                    let torrent = downloader::TorrentBuilder::default()
+                    let torrent = downloader::TorrentMetaBuilder::default()
                         .url(item.enclosure.url)
                         .content_len(item.enclosure.length)
                         .pub_date(item.torrent.pub_date)
@@ -182,7 +182,7 @@ struct MikanEnclosure {
 #[allow(unused_imports)]
 mod tests {
     use crate::{
-        downloader::{Torrent, TorrentBuilder},
+        downloader::{TorrentMeta, TorrentMetaBuilder},
         rss::{
             parsers::{mikan::MikanParser, RssParser},
             RssSubscription, RssSubscriptionItem,
@@ -222,7 +222,7 @@ mod tests {
                     episode: 18,
                     fansub: "[喵萌奶茶屋&LoliHouse]".to_string(),
                     media_info: "[WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]".to_string(),
-                    torrent: TorrentBuilder::default()
+                    torrent: TorrentMetaBuilder::default()
                         .url("https://mikanani.me/Download/20240118/059724511d60173251b378b04709aceff92fffb5.torrent")
                         .content_len(664923008u64)
                         .pub_date("2024-01-18T06:57:43.93")
@@ -238,7 +238,7 @@ mod tests {
                     episode: 17,
                     fansub: "[喵萌奶茶屋&LoliHouse]".to_string(),
                     media_info: "[WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]".to_string(),
-                    torrent: TorrentBuilder::default()
+                    torrent: TorrentMetaBuilder::default()
                         .url("https://mikanani.me/Download/20240111/872ab5abd72ea223d2a2e36688cc96f83bb71d42.torrent")
                         .content_len(670857984u64)
                         .pub_date("2024-01-11T06:57:59.057")

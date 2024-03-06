@@ -3,12 +3,17 @@ mod mikan;
 use super::{RssSubscription, RssType};
 use async_trait::async_trait;
 pub use mikan::MikanParser;
+use thiserror::Error;
 
-#[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ParsingError {
+    #[error("Failed to download {0}: {1}")]
     DownloadFailed(String, String),
+
+    #[error("Invalid RSS: {0}")]
     InvalidRss(String),
+
+    #[error("Unrecognized episode: {0}")]
     UnrecognizedEpisode(String),
 }
 

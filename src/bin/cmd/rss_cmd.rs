@@ -27,13 +27,6 @@ enum RssCommands {
         rss_type: String,
     },
 
-    /// Watch the RSS feed for new content
-    Watch {
-        /// Update interval in seconds
-        #[arg(long, short, default_value = "60")]
-        interval: u64,
-    },
-
     /// Add a new RSS feed to the bt list
     Add {
         /// Url of rss feed to add
@@ -54,35 +47,13 @@ enum RssCommands {
     },
 }
 
-async fn serialize_feed(rss: rss::Rss) -> anyhow::Result<()> {
-    match parsers::parse(&rss).await {
-        Ok(feed) => {
-            println!("{}", serde_json::to_string(&feed)?);
-        }
-        Err(e) => {
-            eprintln!("{:?}", e);
-        }
-    }
-
-    Ok(())
-}
-
 pub async fn execute(subcommand: RssSubcommand) -> anyhow::Result<()> {
     match subcommand.command {
         RssCommands::Feed { url, rss_type } => {
             let rss = rss::Rss::new(url, None, RssType::from_str(&rss_type)?);
-            serialize_feed(rss).await?;
+            let feeds = parsers::parse(&rss).await?;
+            println!("{:?}", feeds)
         }
-        RssCommands::Watch { interval } => loop {
-            let pool = bt::get_pool().await?;
-            let rss_list = rss::store::get_rss_list(&pool).await.unwrap_or_default();
-            for rss in rss_list {
-                let rss = rss::Rss::new(rss.url, rss.title, rss.rss_type);
-                serialize_feed(rss).await?;
-            }
-
-            tokio::time::sleep(tokio::time::Duration::from_secs(interval)).await;
-        },
         RssCommands::Add {
             url,
             rss_type,

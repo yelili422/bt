@@ -1,3 +1,4 @@
+mod daemon_cmd;
 mod rss_cmd;
 
 use clap::{Parser, Subcommand};
@@ -12,6 +13,7 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    Daemon(daemon_cmd::DaemonSubcommand),
     Rss(rss_cmd::RssSubcommand),
 }
 
@@ -21,6 +23,7 @@ fn main() -> anyhow::Result<()> {
         let args = Cli::parse();
 
         match args.command {
+            Commands::Daemon(subcommand) => daemon_cmd::execute(subcommand).await,
             Commands::Rss(subcommand) => rss_cmd::execute(subcommand).await,
         }
     })

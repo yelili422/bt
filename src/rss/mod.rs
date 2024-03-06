@@ -1,7 +1,7 @@
 pub mod parsers;
 pub mod store;
 
-use crate::downloader::Torrent;
+use crate::downloader::TorrentMeta;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumString};
 
@@ -47,5 +47,5 @@ pub struct RssSubscriptionItem {
     pub episode: u64,
     pub fansub: String,
     pub media_info: String,
-    pub torrent: Torrent,
+    pub torrent: TorrentMeta,
 }

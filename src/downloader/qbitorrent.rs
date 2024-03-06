@@ -1,4 +1,4 @@
-use super::{Downloader, DownloaderError, Torrent};
+use super::{Downloader, DownloaderError, TorrentMeta};
 
 struct QBittorrentDownloader {
     username: String,
@@ -47,7 +47,7 @@ impl QBittorrentDownloader {
 }
 
 impl Downloader for QBittorrentDownloader {
-    async fn download(&self, torrent: Torrent) -> Result<(), DownloaderError> {
+    async fn download(&self, torrent: TorrentMeta) -> Result<(), DownloaderError> {
         let qtorrent = qbittorrent::queries::TorrentDownloadBuilder::default()
             .urls(torrent.url.expect("Empty torrent URL is not allowed"))
             .savepath(torrent.save_path.unwrap_or("/downloads".to_string()))
@@ -86,7 +86,7 @@ mod tests {
     #[tokio::test]
     async fn download() {
         let downloader = get_downloader().await.unwrap();
-        let torrent = crate::downloader::TorrentBuilder::default()
+        let torrent = crate::downloader::TorrentMetaBuilder::default()
             .url("https://mikanani.me/Download/20240111/872ab5abd72ea223d2a2e36688cc96f83bb71d42.torrent")
             .content_len(1024u64)
             .pub_date("2021-01-01")
@@ -95,12 +95,12 @@ mod tests {
             .build()
             .unwrap();
 
-        let result = downloader.download(torrent).await;
-        assert!(result.is_ok());
+        downloader.download(torrent).await.unwrap();
 
         tokio::time::sleep(time::Duration::from_secs(2)).await;
 
         let torrents = downloader.get_torrent_list().await.unwrap();
+        dbg!(&torrents);
         assert!(torrents.len() >= 1);
     }
 }
