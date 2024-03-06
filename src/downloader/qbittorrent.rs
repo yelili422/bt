@@ -34,7 +34,7 @@ impl QBittorrentDownloader {
             .await?
             .application_version()
             .await
-            .map_err(|err| DownloaderError::UnknownError(err.to_string()))
+            .map_err(|err| DownloaderError::ClientError(err.to_string()))
     }
 
     async fn get_torrent_list(&self) -> Result<Vec<qbittorrent::data::Torrent>, DownloaderError> {
@@ -42,24 +42,24 @@ impl QBittorrentDownloader {
             .await?
             .get_torrent_list()
             .await
-            .map_err(|err| DownloaderError::UnknownError(err.to_string()))
+            .map_err(|err| DownloaderError::ClientError(err.to_string()))
     }
 }
 
 impl Downloader for QBittorrentDownloader {
     async fn download(&self, torrent: TorrentMeta) -> Result<(), DownloaderError> {
         let qtorrent = qbittorrent::queries::TorrentDownloadBuilder::default()
-            .urls(torrent.url.expect("Empty torrent URL is not allowed"))
+            .urls(torrent.url)
             .savepath(torrent.save_path.unwrap_or("/downloads".to_string()))
             .category(torrent.category.unwrap_or("Bangumi".to_string()))
             .build()
-            .map_err(|err| DownloaderError::UnknownError(err.to_string()))?;
+            .map_err(|err| DownloaderError::ClientError(err.to_string()))?;
 
         self.get_session()
             .await?
             .add_new_torrent(&qtorrent)
             .await
-            .map_err(|err| DownloaderError::UnknownError(err.to_string()))
+            .map_err(|err| DownloaderError::ClientError(err.to_string()))
     }
 }
 

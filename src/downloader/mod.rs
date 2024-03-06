@@ -1,17 +1,18 @@
-mod qbitorrent;
+mod bittorrent;
+mod qbittorrent;
 mod store;
 
+use crate::downloader::bittorrent::Torrent;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 /// The metadata of a torrent file
 #[derive(Debug, PartialEq, Eq, Builder, Default, Serialize, Deserialize)]
 #[builder(setter(into, strip_option), default)]
 pub struct TorrentMeta {
     /// The url of the torrent file
-    url: Option<String>,
-    /// The content of the torrent file
-    data: Option<Vec<u8>>,
+    url: String,
     content_len: Option<u64>,
     pub_date: Option<String>,
     save_path: Option<String>,
@@ -19,21 +20,33 @@ pub struct TorrentMeta {
 }
 
 impl TorrentMeta {
-    async fn download_content(&self) -> anyhow::Result<Vec<u8>> {
-        if let Some(url) = &self.url {
-            let response = reqwest::get(url).await?;
-            let content = response.bytes().await?;
-            Ok(content.to_vec())
-        } else {
-            panic!("Empty torrent URL cannot be downloaded")
-        }
+    async fn download_dot_torrent(&self) -> Result<Vec<u8>, TorrentInaccessibleError> {
+        let url = &self.url;
+        let response = reqwest::get(url)
+            .await
+            .map_err(|e| TorrentInaccessibleError(url.to_string(), e.to_string()))?;
+        let content = response
+            .bytes()
+            .await
+            .map_err(|e| TorrentInaccessibleError(url.to_string(), e.to_string()))?;
+        Ok(content.to_vec())
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
+#[error("Torrent inaccessible: {0}\n {1}")]
+pub struct TorrentInaccessibleError(String, String);
+
+#[derive(Debug, Error)]
 pub enum DownloaderError {
+    #[error("Invalid authentication for downloader: {0}")]
     InvalidAuthentication(String),
-    UnknownError(String),
+
+    #[error("Downloader error: {0}")]
+    ClientError(String),
+
+    #[error("Torrent inaccessible: {0}")]
+    TorrentInaccessibleError(#[from] TorrentInaccessibleError),
 }
 
 pub trait Downloader {
@@ -42,11 +55,16 @@ pub trait Downloader {
 
 pub async fn download_with_state<T: Downloader>(
     downloader: T,
-    torrents: Vec<TorrentMeta>,
+    torrent_meta: TorrentMeta,
 ) -> Result<(), DownloaderError> {
-    for torrent in torrents {
-        downloader.download(torrent).await?;
-    }
+    let dot_torrent = torrent_meta.download_dot_torrent().await?;
+
+    let torrent: Torrent = serde_bencode::from_bytes(&dot_torrent).unwrap();
+    let info_hash = hex::encode(torrent.info_hash());
+
+    dbg!(&info_hash);
+
+    downloader.download(torrent_meta).await?;
 
     Ok(())
 }
