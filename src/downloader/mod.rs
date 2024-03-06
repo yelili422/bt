@@ -3,12 +3,16 @@ mod qbittorrent;
 mod store;
 
 use crate::downloader::bittorrent::Torrent;
+use async_trait::async_trait;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::renamer::TvInfo;
+pub use qbittorrent::QBittorrentDownloader;
+
 /// The metadata of a torrent file
-#[derive(Debug, PartialEq, Eq, Builder, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Builder, Default, Serialize, Deserialize)]
 #[builder(setter(into, strip_option), default)]
 pub struct TorrentMeta {
     /// The url of the torrent file
@@ -49,13 +53,15 @@ pub enum DownloaderError {
     TorrentInaccessibleError(#[from] TorrentInaccessibleError),
 }
 
-pub trait Downloader {
+#[async_trait]
+pub trait Downloader: Send + Sync {
     async fn download(&self, torrent: TorrentMeta) -> Result<(), DownloaderError>;
 }
 
-pub async fn download_with_state<T: Downloader>(
-    downloader: T,
+pub async fn download_with_state(
+    downloader: &dyn Downloader,
     torrent_meta: TorrentMeta,
+    media_info: TvInfo,
 ) -> Result<(), DownloaderError> {
     let dot_torrent = torrent_meta.download_dot_torrent().await?;
 
@@ -67,4 +73,9 @@ pub async fn download_with_state<T: Downloader>(
     downloader.download(torrent_meta).await?;
 
     Ok(())
+}
+
+pub fn get_downloader() -> Box<dyn Downloader> {
+    // TODO: Read from config
+    Box::new(QBittorrentDownloader::new("admin", "adminadmin", "http://localhost:8080"))
 }

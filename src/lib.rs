@@ -1,8 +1,8 @@
 use sqlx::sqlite;
 use std::env;
 
-mod downloader;
-mod renamer;
+pub mod downloader;
+pub mod renamer;
 pub mod rss;
 
 pub async fn get_pool() -> anyhow::Result<sqlite::SqlitePool> {

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::rss::parsers::RssParser;
 use crate::{downloader, rss};
 
 pub struct MikanParser {}
@@ -26,7 +27,7 @@ fn parser_episode_title(title: &str) -> Option<regex::Captures> {
     return re.captures(title);
 }
 
-impl super::RssParser for MikanParser {
+impl RssParser for MikanParser {
     fn parse_content(
         &self,
         content: &str,

@@ -1,5 +1,6 @@
-use bt::rss;
+use bt::renamer::TvInfo;
 use bt::rss::parsers;
+use bt::{downloader, rss};
 use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
@@ -19,27 +20,26 @@ enum DaemonCommands {
     },
 }
 
-async fn serialize_feed(rss: rss::Rss) -> anyhow::Result<()> {
-    match parsers::parse(&rss).await {
-        Ok(feed) => {
-            println!("{}", serde_json::to_string(&feed)?);
-        }
-        Err(e) => {
-            eprintln!("{:?}", e);
-        }
-    }
-
-    Ok(())
-}
-
 pub async fn execute(subcommand: DaemonSubcommand) -> anyhow::Result<()> {
     match subcommand.command {
         DaemonCommands::Start { interval } => loop {
+            let downloader = downloader::get_downloader();
+
             let pool = bt::get_pool().await?;
             let rss_list = rss::store::get_rss_list(&pool).await.unwrap_or_default();
             for rss in rss_list {
                 let rss = rss::Rss::new(rss.url, rss.title, rss.rss_type);
-                serialize_feed(rss).await?;
+                let feeds = parsers::parse(&rss).await?;
+                for feed in &feeds.items {
+                    let rules: TvInfo = feed.into();
+                    downloader::download_with_state(
+                        downloader.as_ref(),
+                        feed.torrent.clone(),
+                        rules,
+                    )
+                    .await?;
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                }
             }
 
             tokio::time::sleep(tokio::time::Duration::from_secs(interval)).await;

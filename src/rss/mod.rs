@@ -2,6 +2,7 @@ pub mod parsers;
 pub mod store;
 
 use crate::downloader::TorrentMeta;
+use crate::renamer::{TvInfo, TvInfoBuilder};
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumString};
 
@@ -48,4 +49,18 @@ pub struct RssSubscriptionItem {
     pub fansub: String,
     pub media_info: String,
     pub torrent: TorrentMeta,
+}
+
+impl From<&RssSubscriptionItem> for TvInfo {
+    fn from(s: &RssSubscriptionItem) -> Self {
+        TvInfoBuilder::default()
+            .show_name(s.title.clone())
+            .episode_name(s.episode_title.clone())
+            .display_name(s.media_info.clone())
+            .season(s.season)
+            .episode(s.episode)
+            .category(None)
+            .build()
+            .unwrap()
+    }
 }

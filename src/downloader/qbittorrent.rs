@@ -1,6 +1,7 @@
 use super::{Downloader, DownloaderError, TorrentMeta};
+use async_trait::async_trait;
 
-struct QBittorrentDownloader {
+pub struct QBittorrentDownloader {
     username: String,
     password: String,
     address: String,
@@ -8,7 +9,7 @@ struct QBittorrentDownloader {
 
 #[allow(unused)]
 impl QBittorrentDownloader {
-    fn new(username: &str, password: &str, address: &str) -> Self {
+    pub fn new(username: &str, password: &str, address: &str) -> Self {
         Self {
             username: username.to_string(),
             password: password.to_string(),
@@ -46,6 +47,7 @@ impl QBittorrentDownloader {
     }
 }
 
+#[async_trait]
 impl Downloader for QBittorrentDownloader {
     async fn download(&self, torrent: TorrentMeta) -> Result<(), DownloaderError> {
         let qtorrent = qbittorrent::queries::TorrentDownloadBuilder::default()
