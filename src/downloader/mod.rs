@@ -8,7 +8,9 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::renamer::TvInfo;
+use crate::downloader::store::DownloadTaskBuilder;
+use crate::get_pool;
+use crate::renamer::BangumiInfo;
 pub use qbittorrent::QBittorrentDownloader;
 
 /// The metadata of a torrent file
@@ -55,20 +57,33 @@ pub enum DownloaderError {
 
 #[async_trait]
 pub trait Downloader: Send + Sync {
-    async fn download(&self, torrent: TorrentMeta) -> Result<(), DownloaderError>;
+    async fn download(&self, torrent: &TorrentMeta) -> Result<(), DownloaderError>;
 }
 
 pub async fn download_with_state(
     downloader: &dyn Downloader,
-    torrent_meta: TorrentMeta,
-    media_info: TvInfo,
-) -> Result<(), DownloaderError> {
+    torrent_meta: &TorrentMeta,
+    bangumi_info: &BangumiInfo,
+) -> anyhow::Result<()> {
     let dot_torrent = torrent_meta.download_dot_torrent().await?;
 
     let torrent: Torrent = serde_bencode::from_bytes(&dot_torrent).unwrap();
     let info_hash = hex::encode(torrent.info_hash());
 
-    dbg!(&info_hash);
+    store::add_task(
+        &get_pool().await?,
+        &DownloadTaskBuilder::default()
+            .id(None)
+            .torrent_hash(info_hash)
+            .torrent_url(Some(torrent_meta.url.to_string()))
+            .status(store::TaskStatus::Downloading)
+            .start_time(chrono::Local::now())
+            .end_time(None)
+            .build()
+            .unwrap(),
+        bangumi_info,
+    )
+    .await?;
 
     downloader.download(torrent_meta).await?;
 

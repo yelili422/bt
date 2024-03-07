@@ -1,4 +1,4 @@
-use bt::renamer::TvInfo;
+use bt::renamer::BangumiInfo;
 use bt::rss::parsers;
 use bt::{downloader, rss};
 use clap::{Parser, Subcommand};
@@ -23,7 +23,7 @@ enum DaemonCommands {
 pub async fn execute(subcommand: DaemonSubcommand) -> anyhow::Result<()> {
     match subcommand.command {
         DaemonCommands::Start { interval } => loop {
-            let downloader = downloader::get_downloader();
+            let default_downloader = downloader::get_downloader();
 
             let pool = bt::get_pool().await?;
             let rss_list = rss::store::get_rss_list(&pool).await.unwrap_or_default();
@@ -31,11 +31,10 @@ pub async fn execute(subcommand: DaemonSubcommand) -> anyhow::Result<()> {
                 let rss = rss::Rss::new(rss.url, rss.title, rss.rss_type);
                 let feeds = parsers::parse(&rss).await?;
                 for feed in &feeds.items {
-                    let rules: TvInfo = feed.into();
                     downloader::download_with_state(
-                        downloader.as_ref(),
-                        feed.torrent.clone(),
-                        rules,
+                        default_downloader.as_ref(),
+                        &feed.torrent,
+                        &feed.into(),
                     )
                     .await?;
                     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;

@@ -2,7 +2,7 @@ pub mod parsers;
 pub mod store;
 
 use crate::downloader::TorrentMeta;
-use crate::renamer::{TvInfo, TvInfoBuilder};
+use crate::renamer::{BangumiInfo, BangumiInfoBuilder};
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumString};
 
@@ -51,9 +51,9 @@ pub struct RssSubscriptionItem {
     pub torrent: TorrentMeta,
 }
 
-impl From<&RssSubscriptionItem> for TvInfo {
+impl From<&RssSubscriptionItem> for BangumiInfo {
     fn from(s: &RssSubscriptionItem) -> Self {
-        TvInfoBuilder::default()
+        BangumiInfoBuilder::default()
             .show_name(s.title.clone())
             .episode_name(s.episode_title.clone())
             .display_name(s.media_info.clone())

@@ -2,6 +2,7 @@ mod daemon_cmd;
 mod rss_cmd;
 
 use clap::{Parser, Subcommand};
+use log::info;
 
 // The Bangumi Tools CLI
 #[derive(Parser, Debug)]
@@ -18,6 +19,9 @@ enum Commands {
 }
 
 fn main() -> anyhow::Result<()> {
+    dotenv::dotenv()?;
+    env_logger::init();
+
     let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async {
         let args = Cli::parse();

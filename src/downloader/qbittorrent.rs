@@ -49,11 +49,16 @@ impl QBittorrentDownloader {
 
 #[async_trait]
 impl Downloader for QBittorrentDownloader {
-    async fn download(&self, torrent: TorrentMeta) -> Result<(), DownloaderError> {
+    async fn download(&self, torrent: &TorrentMeta) -> Result<(), DownloaderError> {
         let qtorrent = qbittorrent::queries::TorrentDownloadBuilder::default()
-            .urls(torrent.url)
-            .savepath(torrent.save_path.unwrap_or("/downloads".to_string()))
-            .category(torrent.category.unwrap_or("Bangumi".to_string()))
+            .urls(torrent.url.clone())
+            .savepath(
+                torrent
+                    .save_path
+                    .clone()
+                    .unwrap_or(String::from("/downloads")),
+            )
+            .category(torrent.category.clone().unwrap_or(String::from("Bangumi")))
             .build()
             .map_err(|err| DownloaderError::ClientError(err.to_string()))?;
 
@@ -97,7 +102,7 @@ mod tests {
             .build()
             .unwrap();
 
-        downloader.download(torrent).await.unwrap();
+        downloader.download(&torrent).await.unwrap();
 
         tokio::time::sleep(time::Duration::from_secs(2)).await;
 

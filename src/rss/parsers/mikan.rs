@@ -28,10 +28,7 @@ fn parser_episode_title(title: &str) -> Option<regex::Captures> {
 }
 
 impl RssParser for MikanParser {
-    fn parse_content(
-        &self,
-        content: &str,
-    ) -> Result<crate::rss::RssSubscription, super::ParsingError> {
+    fn parse_content(&self, content: &str) -> Result<rss::RssSubscription, super::ParsingError> {
         // Parse the content here and return the result
         // If parsing is successful, create and return an RssSubscription
         // If parsing fails, return a ParsingError

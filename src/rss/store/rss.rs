@@ -14,6 +14,7 @@ pub struct RssEntity {
 }
 
 pub async fn add_rss(pool: &SqlitePool, rss: &RssEntity) -> Result<i64, sqlx::Error> {
+    let mut tx = pool.begin().await?;
     // check if the rss url already exists
     let rec = query!(
         r#"
@@ -23,10 +24,10 @@ WHERE url = ?1
         "#,
         rss.url,
     )
-    .fetch_optional(pool)
+    .fetch_optional(&mut *tx)
     .await?;
     if rec.is_some() {
-        info!("RSS url {} already exists", &rss.url);
+        info!("[store] RSS url {} already exists", &rss.url);
         return Ok(rec.unwrap().id);
     }
 
@@ -40,10 +41,11 @@ VALUES (?1, ?2, ?3)
         rss.title,
         rss_type,
     )
-    .execute(pool)
+    .execute(&mut *tx)
     .await?
     .last_insert_rowid();
 
+    tx.commit().await?;
     Ok(id)
 }
 
