@@ -11,6 +11,8 @@ impl MikanParser {
     }
 }
 
+const TITLE_PATTERN: &str = r"(.*)\s第([一|二|三|四|五|六|七|八|九|十]+)季";
+
 const EPISODE_TITLE_PATTERN: &str = r"^
 (?<fansub>\[.*?\])*
 \s*
@@ -20,6 +22,31 @@ const EPISODE_TITLE_PATTERN: &str = r"^
 \s*
 (?<media>[\[\(].*[\]\)])*
 $";
+
+fn parse_title(title: &str) -> (String, u64) {
+    let re = regex::Regex::new(TITLE_PATTERN).unwrap();
+    match re.captures(title) {
+        Some(captures) => {
+            let title = captures.get(1).unwrap().as_str();
+            let season = captures.get(2).unwrap().as_str();
+            let season = match season {
+                "一" => 1,
+                "二" => 2,
+                "三" => 3,
+                "四" => 4,
+                "五" => 5,
+                "六" => 6,
+                "七" => 7,
+                "八" => 8,
+                "九" => 9,
+                "十" => 10,
+                _ => unimplemented!("implemented season number"),
+            };
+            (title.to_string(), season)
+        }
+        None => (title.to_string(), 1),
+    }
+}
 
 fn parser_episode_title(title: &str) -> Option<regex::Captures> {
     let pattern = EPISODE_TITLE_PATTERN.replace("\n", "");
@@ -36,25 +63,17 @@ impl RssParser for MikanParser {
         match rss {
             Ok(rss) => {
                 let mut rss_items = Vec::new();
-                let title = {
-                    if &rss.channel.title == "Mikan Project - 我的番组" {
-                        ""
-                    } else {
-                        rss.channel
-                            .title
-                            .strip_prefix("Mikan Project - ")
-                            .unwrap_or("")
-                    }
-                };
+
+                let raw_title = rss.channel.title.as_str();
+                // strip "Mikan Project - " from title if present
+                let row_title_content = raw_title
+                    .strip_prefix("Mikan Project - ")
+                    .unwrap_or(raw_title)
+                    .to_string();
+                let (mut title, season) = parse_title(&row_title_content);
 
                 for item in rss.channel.item {
-                    if title == "" {
-                        todo!("(mikan integration rss)implement title parsing from episode")
-                    }
-
                     let mut episode = 1u64;
-                    let season = 1u64;
-                    let mut title = title;
                     let mut fansub = "";
                     let mut media_info = "";
 
@@ -71,8 +90,10 @@ impl RssParser for MikanParser {
                             if let Some(title_part) = captures.name("title") {
                                 let title_part = title_part.as_str();
                                 let titles: Vec<_> = title_part.split('/').collect();
-                                if titles.len() > 1 && title == "" {
-                                    title = titles[0].trim();
+
+                                // prioritize the title in the rss header
+                                if title == "" && titles.len() > 1 {
+                                    title = titles[0].trim().to_string();
                                 }
                             }
                             // 17
@@ -90,11 +111,6 @@ impl RssParser for MikanParser {
                             ));
                         }
                     }
-
-                    // TODO: parse season from title else use 1
-                    // e.g.
-                    // - [GJ.Y] 欢迎来到实力至上主义的教室 第三季 / Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e 3rd Season - 03 (B-Global 3840x2160 HEVC AAC MKV)
-                    // - [GJ.Y] 弱角友崎同学 2nd STAGE / Jaku-Chara Tomozaki-kun 2nd Stage - 03 (CR 1920x1080 AVC AAC MKV)
 
                     let torrent = downloader::TorrentMetaBuilder::default()
                         .url(item.enclosure.url)
@@ -200,8 +216,8 @@ mod tests {
     }
 
     #[test]
-    fn parse_rss_content() {
-        let rss_content = read_to_string("./tests/dataset/mikan.rss").unwrap();
+    fn parse_rss_content_normal() {
+        let rss_content = read_to_string("./tests/dataset/mikan-1.rss").unwrap();
         assert_ne!(&rss_content, "");
 
         let parser = MikanParser::new();
@@ -240,6 +256,39 @@ mod tests {
                         .url("https://mikanani.me/Download/20240111/872ab5abd72ea223d2a2e36688cc96f83bb71d42.torrent")
                         .content_len(670857984u64)
                         .pub_date("2024-01-11T06:57:59.057")
+                        .build()
+                        .unwrap(),
+                },
+            ]
+        };
+        assert_eq!(res, expect)
+    }
+
+    #[test]
+    fn parse_rss_season_2() {
+        let rss_content = read_to_string("./tests/dataset/mikan-2.rss").unwrap();
+        assert_ne!(&rss_content, "");
+
+        let parser = MikanParser::new();
+        let res = parser.parse_content(&rss_content).unwrap();
+
+        let expect = RssSubscription {
+            url: "http://mikanani.me/RSS/Bangumi?bangumiId=3223&subgroupid=615".to_string(),
+            description: "Mikan Project - 弱角友崎同学 第二季".to_string(),
+            items: vec![
+                RssSubscriptionItem {
+                    url: "https://mikanani.me/Home/Episode/65515bee0f9e64d00613e148afac9fbf26e13060".to_string(),
+                    title: "弱角友崎同学".to_string(),
+                    episode_title: "".to_string(),
+                    description: "[GJ.Y] 弱角友崎同学 2nd STAGE / Jaku-Chara Tomozaki-kun 2nd Stage - 10 (Baha 1920x1080 AVC AAC MP4)[428.25 MB]".to_string(),
+                    season: 2,
+                    episode: 10,
+                    fansub: "[GJ.Y]".to_string(),
+                    media_info: "(Baha 1920x1080 AVC AAC MP4)".to_string(),
+                    torrent: TorrentMetaBuilder::default()
+                        .url("https://mikanani.me/Download/20240306/65515bee0f9e64d00613e148afac9fbf26e13060.torrent")
+                        .content_len(449052672u64)
+                        .pub_date("2024-03-06T21:41:22.281")
                         .build()
                         .unwrap(),
                 },

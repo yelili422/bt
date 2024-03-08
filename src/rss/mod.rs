@@ -56,7 +56,8 @@ impl From<&RssSubscriptionItem> for BangumiInfo {
         BangumiInfoBuilder::default()
             .show_name(s.title.clone())
             .episode_name(s.episode_title.clone())
-            .display_name(s.media_info.clone())
+            // .display_name(s.media_info.clone()) // it's noise
+            .display_name(s.episode_title.clone())
             .season(s.season)
             .episode(s.episode)
             .category(None)
