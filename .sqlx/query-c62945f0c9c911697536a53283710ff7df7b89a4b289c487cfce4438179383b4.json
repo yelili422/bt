@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\nINSERT INTO main.download_task (torrent_hash, torrent_url, start_time, status,\n    show_name, episode_name, display_name, season, episode, category, renamed)\nVALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)\nRETURNING id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c62945f0c9c911697536a53283710ff7df7b89a4b289c487cfce4438179383b4"
+}

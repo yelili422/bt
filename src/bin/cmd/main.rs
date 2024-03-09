@@ -2,7 +2,6 @@ mod daemon_cmd;
 mod rss_cmd;
 
 use clap::{Parser, Subcommand};
-use log::info;
 
 // The Bangumi Tools CLI
 #[derive(Parser, Debug)]

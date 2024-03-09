@@ -56,8 +56,10 @@ impl From<&RssSubscriptionItem> for BangumiInfo {
         BangumiInfoBuilder::default()
             .show_name(s.title.clone())
             .episode_name(s.episode_title.clone())
-            // .display_name(s.media_info.clone()) // it's noise
-            .display_name(s.episode_title.clone())
+            // Display name is necessary because some bangumies have multiple versions
+            // from different platforms
+            // When renaming the file, the display name is used as the file name to avoid conflicts
+            .display_name(s.media_info.clone())
             .season(s.season)
             .episode(s.episode)
             .category(None)

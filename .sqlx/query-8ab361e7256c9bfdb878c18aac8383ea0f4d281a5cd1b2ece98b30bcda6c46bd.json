@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE main.download_task SET status = ?1 , download_path = ?2 WHERE torrent_hash = ?3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "8ab361e7256c9bfdb878c18aac8383ea0f4d281a5cd1b2ece98b30bcda6c46bd"
+}

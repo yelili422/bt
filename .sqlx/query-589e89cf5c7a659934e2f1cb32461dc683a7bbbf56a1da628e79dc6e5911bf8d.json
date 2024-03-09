@@ -1,0 +1,92 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT * FROM main.download_task WHERE status = ?1 AND renamed = 0",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "torrent_hash",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "torrent_url",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "start_time",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "status",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "show_name",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "episode_name",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "display_name",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "season",
+        "ordinal": 8,
+        "type_info": "Int64"
+      },
+      {
+        "name": "episode",
+        "ordinal": 9,
+        "type_info": "Int64"
+      },
+      {
+        "name": "category",
+        "ordinal": 10,
+        "type_info": "Text"
+      },
+      {
+        "name": "download_path",
+        "ordinal": 11,
+        "type_info": "Text"
+      },
+      {
+        "name": "renamed",
+        "ordinal": 12,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "589e89cf5c7a659934e2f1cb32461dc683a7bbbf56a1da628e79dc6e5911bf8d"
+}

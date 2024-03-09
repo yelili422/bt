@@ -1,5 +1,6 @@
-use super::{Downloader, DownloaderError, TorrentMeta};
+use super::{Downloader, DownloaderError, DownloadingTorrent, TaskStatus, TorrentMeta};
 use async_trait::async_trait;
+use qbittorrent::data::State;
 
 pub struct QBittorrentDownloader {
     username: String,
@@ -68,6 +69,45 @@ impl Downloader for QBittorrentDownloader {
             .await
             .map_err(|err| DownloaderError::ClientError(err.to_string()))
     }
+
+    async fn get_download_list(&self) -> Result<Vec<DownloadingTorrent>, DownloaderError> {
+        let download_tasks = self
+            .get_torrent_list()
+            .await?
+            .iter()
+            .map(|t| {
+                let torrent_info_hash = t.hash().to_string();
+                let status = match t.state() {
+                    State::PausedDL => TaskStatus::Pause,
+                    State::Uploading | State::PausedUP | State::QueuedUP | State::StalledUP => {
+                        TaskStatus::Completed
+                    }
+                    State::Allocating
+                    | State::CheckingUP
+                    | State::ForcedUP
+                    | State::Downloading
+                    | State::QueuedDL
+                    | State::StalledDL
+                    | State::CheckingDL
+                    | State::ForceDL
+                    | State::CheckingResumeData
+                    | State::MetaDL => TaskStatus::Downloading,
+                    State::Error | State::MissingFiles | State::Unknown | State::Moving => {
+                        TaskStatus::Error
+                    }
+                };
+
+                DownloadingTorrent{
+                    hash: torrent_info_hash,
+                    status,
+                    save_path: t.save_path().to_string(),
+                    name: t.name().to_string(),
+                }
+            })
+            .collect();
+
+        Ok(download_tasks)
+    }
 }
 
 #[allow(unused_imports, unused)]
@@ -79,7 +119,7 @@ mod tests {
     use super::QBittorrentDownloader;
 
     async fn get_downloader() -> Result<QBittorrentDownloader, DownloaderError> {
-        Ok(QBittorrentDownloader::new("admin", "adminadmin", "http://localhost:8080"))
+        Ok(QBittorrentDownloader::new("admin", "adminadmin", "http://192.168.42.108:8080"))
     }
 
     #[tokio::test]
@@ -109,5 +149,12 @@ mod tests {
         let torrents = downloader.get_torrent_list().await.unwrap();
         dbg!(&torrents);
         assert!(torrents.len() >= 1);
+    }
+
+    #[tokio::test]
+    async fn get_download_list() {
+        let downloader = get_downloader().await.unwrap();
+        let torrents = downloader.get_download_list().await.unwrap();
+        dbg!(&torrents);
     }
 }

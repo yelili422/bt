@@ -1,4 +1,3 @@
-use bt::renamer::BangumiInfo;
 use bt::rss::parsers;
 use bt::{downloader, rss};
 use clap::{Parser, Subcommand};
@@ -37,9 +36,15 @@ pub async fn execute(subcommand: DaemonSubcommand) -> anyhow::Result<()> {
                         &feed.into(),
                     )
                     .await?;
-                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
                 }
             }
+
+            // update task status
+            let download_list = default_downloader.get_download_list().await?;
+            downloader::update_task_status(download_list).await?;
+
+            // if task is done, rename the file and update the database
 
             tokio::time::sleep(tokio::time::Duration::from_secs(interval)).await;
         },

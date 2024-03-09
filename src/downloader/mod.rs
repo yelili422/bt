@@ -1,17 +1,19 @@
 mod bittorrent;
 mod qbittorrent;
 mod store;
+mod task;
 
-use crate::downloader::bittorrent::Torrent;
+use std::path::Path;
 use async_trait::async_trait;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::downloader::store::DownloadTaskBuilder;
 use crate::get_pool;
 use crate::renamer::BangumiInfo;
+pub use bittorrent::*;
 pub use qbittorrent::QBittorrentDownloader;
+pub use task::*;
 
 /// The metadata of a torrent file
 #[derive(Debug, Clone, PartialEq, Eq, Builder, Default, Serialize, Deserialize)]
@@ -55,9 +57,22 @@ pub enum DownloaderError {
     TorrentInaccessibleError(#[from] TorrentInaccessibleError),
 }
 
+#[derive(Debug)]
+pub struct DownloadingTorrent {
+    pub hash: String,
+    pub status: TaskStatus,
+    // Path where this torrent's data is stored
+    pub save_path: String,
+    // Torrent name
+    // if the torrent is a single file, this is the file name, otherwise the directory name
+    pub name: String,
+}
+
 #[async_trait]
 pub trait Downloader: Send + Sync {
     async fn download(&self, torrent: &TorrentMeta) -> Result<(), DownloaderError>;
+
+    async fn get_download_list(&self) -> Result<Vec<DownloadingTorrent>, DownloaderError>;
 }
 
 pub async fn download_with_state(
@@ -76,9 +91,8 @@ pub async fn download_with_state(
             .id(None)
             .torrent_hash(info_hash)
             .torrent_url(Some(torrent_meta.url.to_string()))
-            .status(store::TaskStatus::Downloading)
+            .status(TaskStatus::Downloading)
             .start_time(chrono::Local::now())
-            .end_time(None)
             .build()
             .unwrap(),
         bangumi_info,
@@ -87,6 +101,18 @@ pub async fn download_with_state(
 
     downloader.download(torrent_meta).await?;
 
+    Ok(())
+}
+
+pub async fn update_task_status(download_list: Vec<DownloadingTorrent>) -> anyhow::Result<()> {
+    let pool = get_pool().await?;
+    for torrent in download_list {
+        let task = store::get_task(&pool, &torrent.hash).await?;
+        let file_path = Path::new(&torrent.save_path).join(&torrent.name);
+        if task.status != torrent.status {
+            store::update_task_status(&pool, &torrent.hash, torrent.status, file_path.as_path()).await?;
+        }
+    }
     Ok(())
 }
 
