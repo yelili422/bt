@@ -3,10 +3,10 @@ mod qbittorrent;
 mod store;
 mod task;
 
-use std::path::Path;
 use async_trait::async_trait;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use crate::get_pool;
@@ -68,6 +68,12 @@ pub struct DownloadingTorrent {
     pub name: String,
 }
 
+impl DownloadingTorrent {
+    pub fn get_file_path(&self) -> PathBuf {
+        Path::new(&self.save_path).join(&self.name)
+    }
+}
+
 #[async_trait]
 pub trait Downloader: Send + Sync {
     async fn download(&self, torrent: &TorrentMeta) -> Result<(), DownloaderError>;
@@ -93,6 +99,7 @@ pub async fn download_with_state(
             .torrent_url(Some(torrent_meta.url.to_string()))
             .status(TaskStatus::Downloading)
             .start_time(chrono::Local::now())
+            .renamed(false)
             .build()
             .unwrap(),
         bangumi_info,
@@ -104,15 +111,32 @@ pub async fn download_with_state(
     Ok(())
 }
 
-pub async fn update_task_status(download_list: Vec<DownloadingTorrent>) -> anyhow::Result<()> {
+pub async fn get_bangumi_info(torrent_hash: &str) -> anyhow::Result<BangumiInfo> {
+    let info = store::get_bangumi_info(&get_pool().await?, torrent_hash).await?;
+
+    Ok(info)
+}
+
+pub async fn update_task_status(download_list: &Vec<DownloadingTorrent>) -> anyhow::Result<()> {
     let pool = get_pool().await?;
     for torrent in download_list {
         let task = store::get_task(&pool, &torrent.hash).await?;
-        let file_path = Path::new(&torrent.save_path).join(&torrent.name);
         if task.status != torrent.status {
-            store::update_task_status(&pool, &torrent.hash, torrent.status, file_path.as_path()).await?;
+            store::update_task_status(
+                &pool,
+                &torrent.hash,
+                torrent.status,
+                torrent.get_file_path().as_path(),
+            )
+            .await?;
         }
     }
+    Ok(())
+}
+
+pub async fn set_task_renamed(torrent_hash: &str) -> anyhow::Result<()> {
+    let pool = get_pool().await?;
+    store::update_task_renamed(&pool, torrent_hash).await?;
     Ok(())
 }
 

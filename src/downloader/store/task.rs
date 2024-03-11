@@ -1,8 +1,8 @@
-use std::path::Path;
 use crate::downloader::{DownloadTask, TaskStatus};
 use crate::renamer::BangumiInfo;
 use log::info;
 use sqlx::query;
+use std::path::Path;
 use std::str::FromStr;
 
 pub async fn add_task(
@@ -89,6 +89,7 @@ pub async fn get_task(
     })
 }
 
+#[allow(unused)]
 pub async fn get_tasks_need_renamed(
     pool: &sqlx::SqlitePool,
 ) -> Result<Vec<DownloadTask>, sqlx::Error> {
@@ -158,7 +159,25 @@ pub async fn update_task_status(
     .execute(&mut *tx)
     .await?;
 
-    info!("[store] Update task [{}] status to {}.", torrent_hash, status);
+    info!("[store] Updated task [{}] status to {}.", torrent_hash, status);
+    tx.commit().await?;
+    Ok(())
+}
+
+pub async fn update_task_renamed(
+    pool: &sqlx::SqlitePool,
+    torrent_hash: &str,
+) -> Result<(), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+
+    query!(
+        r#"UPDATE main.download_task SET renamed = 1 WHERE torrent_hash = ?1"#,
+        torrent_hash
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    info!("[store] Marked task [{}] renamed.", torrent_hash);
     tx.commit().await?;
     Ok(())
 }

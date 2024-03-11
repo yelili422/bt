@@ -97,7 +97,7 @@ impl Downloader for QBittorrentDownloader {
                     }
                 };
 
-                DownloadingTorrent{
+                DownloadingTorrent {
                     hash: torrent_info_hash,
                     status,
                     save_path: t.save_path().to_string(),
@@ -119,7 +119,7 @@ mod tests {
     use super::QBittorrentDownloader;
 
     async fn get_downloader() -> Result<QBittorrentDownloader, DownloaderError> {
-        Ok(QBittorrentDownloader::new("admin", "adminadmin", "http://192.168.42.108:8080"))
+        Ok(QBittorrentDownloader::new("admin", "adminadmin", "http://localhost:8080"))
     }
 
     #[tokio::test]

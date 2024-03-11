@@ -7,6 +7,7 @@ use std::str::FromStr;
 #[derive(Debug, Builder)]
 #[builder(setter(into))]
 pub struct RssEntity {
+    #[allow(unused)]
     id: Option<i64>,
     pub url: String,
     pub title: Option<String>,
