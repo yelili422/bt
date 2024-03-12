@@ -12,7 +12,7 @@ name = "cmd"
 
 [dependencies]
 derive_builder = "0.20.0"
-qbittorrent = { path = "../qbittorrent", features = ["tokio"] }
+qbittorrent = { git = "https://github.com/yeli-cn/qbittorrent.git", features = ["tokio"] }
 regex = "1.10.3"
 reqwest = "0.11.23"
 serde = { version = "1.0.195", features = ["derive", "std"] }
