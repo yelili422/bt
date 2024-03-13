@@ -42,6 +42,7 @@ impl PartialEq<Self> for TorrentMeta {
 
 impl Eq for TorrentMeta {}
 
+#[allow(dead_code)]
 impl TorrentMeta {
     async fn download_dot_torrent(&self) -> Result<Vec<u8>, TorrentInaccessibleError> {
         let url = &self.url;

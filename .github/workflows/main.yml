@@ -11,12 +11,22 @@ env:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
+    env:
+      DATABASE_URL: "sqlite:data/bt-test.db"
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        rust-version: 1.76.0
+    - name: Install Dependencies
+      run: cargo install sqlx-cli
+    - name: Initialize Database
+      run: |
+        sqlx database create
+        sqlx migrate run
+        cargo sqlx prepare
     - name: Build
       run: cargo build --verbose
-    - name: Run tests
+    - name: Test
       run: cargo test --verbose
