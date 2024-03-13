@@ -110,6 +110,7 @@ impl Downloader for QBittorrentDownloader {
     }
 }
 
+#[cfg(test)]
 #[allow(unused_imports, unused)]
 mod tests {
     use core::time;
@@ -122,6 +123,7 @@ mod tests {
         Ok(QBittorrentDownloader::new("admin", "adminadmin", "http://localhost:8080"))
     }
 
+    #[ignore]
     #[tokio::test]
     async fn login() {
         let downloader = get_downloader().await.unwrap();
@@ -130,6 +132,7 @@ mod tests {
         assert_ne!(version, "");
     }
 
+    #[ignore]
     #[tokio::test]
     async fn download() {
         let downloader = get_downloader().await.unwrap();
@@ -151,6 +154,7 @@ mod tests {
         assert!(torrents.len() >= 1);
     }
 
+    #[ignore]
     #[tokio::test]
     async fn get_download_list() {
         let downloader = get_downloader().await.unwrap();

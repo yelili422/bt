@@ -5,7 +5,7 @@ use sha1::Digest;
 pub use hashes::Hashes;
 
 /// The torrent file structure
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Torrent {
     /// The URL of the tracker
     pub announce: String,
@@ -13,6 +13,10 @@ pub struct Torrent {
 }
 
 impl Torrent {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, serde_bencode::Error> {
+        serde_bencode::from_bytes(bytes)
+    }
+
     pub fn info_hash(&self) -> [u8; 20] {
         let info_encoded = serde_bencode::to_bytes(&self.info).expect("failed to encode info");
 
@@ -22,7 +26,7 @@ impl Torrent {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TorrentInfo {
     /// The suggested name to save the file/directory
     pub name: String,
@@ -42,7 +46,7 @@ pub struct TorrentInfo {
     pub files: Option<Vec<File>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct File {
     /// The length of the file, in bytes.
     pub length: usize,
@@ -55,7 +59,7 @@ pub struct File {
 mod hashes {
     use serde::Serialize;
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Hashes(Vec<[u8; 20]>);
 
     struct HashesVisitor;
@@ -111,7 +115,7 @@ mod tests {
         let dot_torrent =
             std::fs::read("tests/dataset/872ab5abd72ea223d2a2e36688cc96f83bb71d42.torrent")
                 .unwrap();
-        let torrent: Torrent = serde_bencode::from_bytes(&dot_torrent).unwrap();
+        let torrent = Torrent::from_bytes(&dot_torrent).unwrap();
         let info_hash = torrent.info_hash();
 
         assert_eq!(hex::encode(info_hash), "872ab5abd72ea223d2a2e36688cc96f83bb71d42");

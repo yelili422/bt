@@ -1,6 +1,7 @@
 use bt::rss::parsers;
 use bt::{downloader, renamer, rss};
 use clap::{Parser, Subcommand};
+use log::error;
 use std::path::Path;
 
 #[derive(Parser, Debug)]
@@ -36,15 +37,24 @@ pub async fn execute(subcommand: DaemonSubcommand) -> anyhow::Result<()> {
             let rss_list = rss::store::get_rss_list(&pool).await.unwrap_or_default();
             for rss in rss_list {
                 let rss = rss::Rss::new(rss.url, rss.title, rss.rss_type);
-                let feeds = parsers::parse(&rss).await?;
-                for feed in &feeds.items {
-                    downloader::download_with_state(
-                        default_downloader.as_ref(),
-                        &feed.torrent,
-                        &feed.into(),
-                    )
-                    .await?;
-                    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+                match parsers::parse(&rss).await {
+                    Ok(feeds) => {
+                        for feed in &feeds.items {
+                            downloader::download_with_state(
+                                default_downloader.as_ref(),
+                                &feed.torrent,
+                                &feed.into(),
+                            )
+                            .await
+                            .unwrap_or_else(|e| {
+                                error!("[parser] Failed to download torrent: {:?}", e);
+                            });
+                            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+                        }
+                    }
+                    Err(e) => {
+                        error!("[parser] Failed to parse RSS: {:?}", e);
+                    }
                 }
             }
 

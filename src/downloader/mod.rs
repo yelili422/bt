@@ -1,4 +1,5 @@
 mod bittorrent;
+mod dummy;
 mod qbittorrent;
 mod store;
 mod task;
@@ -12,20 +13,34 @@ use thiserror::Error;
 use crate::get_pool;
 use crate::renamer::BangumiInfo;
 pub use bittorrent::*;
+pub use dummy::DummyDownloader;
 pub use qbittorrent::QBittorrentDownloader;
 pub use task::*;
 
 /// The metadata of a torrent file
-#[derive(Debug, Clone, PartialEq, Eq, Builder, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Builder, Default, Serialize, Deserialize)]
 #[builder(setter(into, strip_option), default)]
 pub struct TorrentMeta {
     /// The url of the torrent file
     url: String,
+    data: Option<Torrent>,
     content_len: Option<u64>,
     pub_date: Option<String>,
     save_path: Option<String>,
     category: Option<String>,
 }
+
+impl PartialEq<Self> for TorrentMeta {
+    fn eq(&self, other: &Self) -> bool {
+        self.url == other.url
+            && self.content_len == other.content_len
+            && self.pub_date == other.pub_date
+            && self.save_path == other.save_path
+            && self.category == other.category
+    }
+}
+
+impl Eq for TorrentMeta {}
 
 impl TorrentMeta {
     async fn download_dot_torrent(&self) -> Result<Vec<u8>, TorrentInaccessibleError> {
@@ -38,6 +53,35 @@ impl TorrentMeta {
             .await
             .map_err(|e| TorrentInaccessibleError(url.to_string(), e.to_string()))?;
         Ok(content.to_vec())
+    }
+
+    async fn fetch_torrent(&mut self) -> Result<(), TorrentInaccessibleError> {
+        if self.data.is_none() {
+            let dot_torrent = self.download_dot_torrent().await?;
+            let torrent = Torrent::from_bytes(&dot_torrent)
+                .map_err(|e| TorrentInaccessibleError(self.url.clone(), e.to_string()))?;
+            self.data = Some(torrent);
+        }
+
+        Ok(())
+    }
+
+    async fn get_info_hash(&self) -> Result<String, TorrentInaccessibleError> {
+        match &self.data {
+            Some(torrent) => Ok(hex::encode(torrent.info_hash())),
+            None => {
+                panic!("Torrent data not fetched")
+            }
+        }
+    }
+
+    async fn get_name(&self) -> Result<String, TorrentInaccessibleError> {
+        match &self.data {
+            Some(torrent) => Ok(torrent.info.name.clone()),
+            None => {
+                panic!("Torrent data not fetched")
+            }
+        }
     }
 }
 
@@ -57,7 +101,7 @@ pub enum DownloaderError {
     TorrentInaccessibleError(#[from] TorrentInaccessibleError),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DownloadingTorrent {
     pub hash: String,
     pub status: TaskStatus,
@@ -86,12 +130,9 @@ pub async fn download_with_state(
     torrent_meta: &TorrentMeta,
     bangumi_info: &BangumiInfo,
 ) -> anyhow::Result<()> {
-    let dot_torrent = torrent_meta.download_dot_torrent().await?;
+    let info_hash = torrent_meta.get_info_hash().await?;
 
-    let torrent: Torrent = serde_bencode::from_bytes(&dot_torrent).unwrap();
-    let info_hash = hex::encode(torrent.info_hash());
-
-    store::add_task(
+    let created = store::add_task(
         &get_pool().await?,
         &DownloadTaskBuilder::default()
             .id(None)
@@ -106,7 +147,9 @@ pub async fn download_with_state(
     )
     .await?;
 
-    downloader.download(torrent_meta).await?;
+    if created != 0 {
+        downloader.download(torrent_meta).await?;
+    }
 
     Ok(())
 }
@@ -140,7 +183,13 @@ pub async fn set_task_renamed(torrent_hash: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(not(test))]
 pub fn get_downloader() -> Box<dyn Downloader> {
     // TODO: Read from config
     Box::new(QBittorrentDownloader::new("admin", "adminadmin", "http://localhost:8080"))
+}
+
+#[cfg(test)]
+pub fn get_downloader() -> Box<dyn Downloader> {
+    Box::new(DummyDownloader::new())
 }

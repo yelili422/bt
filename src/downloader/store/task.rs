@@ -19,10 +19,10 @@ pub async fn add_task(
             .await?;
 
     if let Some(task) = rec {
-        // if the task is already completed or downloading, return the task id
+        // if the task is already completed or downloading, return the 0
         let task_status = TaskStatus::from_str(&task.status).unwrap();
         if vec![TaskStatus::Completed, TaskStatus::Downloading].contains(&task_status) {
-            return Ok(task.id);
+            return Ok(0);
         }
 
         // else remove the task to update all the fields
