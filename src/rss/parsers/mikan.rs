@@ -1,4 +1,5 @@
 use log::error;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::rss::parsers::RssParser;
@@ -9,6 +10,69 @@ pub struct MikanParser {}
 impl MikanParser {
     pub fn new() -> Self {
         Self {}
+    }
+
+    fn parse_rss_item(
+        &self,
+        item: &MikanRssItem,
+    ) -> Result<rss::RssSubscriptionItem, super::ParsingError> {
+        let mut title = String::new();
+        let mut episode = 1u64;
+        let mut season = 1u64;
+        let mut fansub = String::new();
+        let mut media_info = String::new();
+
+        // e.g. [喵萌奶茶屋&amp;LoliHouse] 葬送的芙莉莲 / Sousou no Frieren - 17 [WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]
+        let rss_title = item.title.clone();
+
+        match parser_episode_title(&rss_title) {
+            Some(captures) => {
+                // [喵萌奶茶屋&amp;LoliHouse]
+                if let Some(fansub_part) = captures.name("fansub") {
+                    fansub = fansub_part.as_str().to_string();
+                }
+                // 葬送的芙莉莲 / Sousou no Frieren
+                if let Some(title_part) = captures.name("title") {
+                    let (_title, _season) = parse_bangumi_title(title_part.as_str());
+                    (title, season) = (_title.to_string(), _season);
+
+                    let bangumi_names: Vec<_> = title.split('/').collect();
+                    let re = Regex::new(r"\[(.*?)\]").unwrap();
+                    title = re.replace_all(bangumi_names[0], "").to_string();
+                    title = title.trim().to_string();
+                }
+                // 17
+                if let Some(episode_part) = captures.name("episode") {
+                    episode = episode_part.as_str().parse::<u64>().unwrap();
+                }
+                // [WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]
+                if let Some(media_part) = captures.name("media") {
+                    media_info = media_part.as_str().to_string();
+                }
+            }
+            None => {
+                return Err(super::ParsingError::UnrecognizedEpisode(rss_title.to_string()));
+            }
+        }
+
+        let torrent = downloader::TorrentMetaBuilder::default()
+            .url(&item.enclosure.url)
+            .content_len(item.enclosure.length)
+            .pub_date(&item.torrent.pub_date)
+            .build()
+            .unwrap();
+
+        Ok(rss::RssSubscriptionItem {
+            url: item.link.clone(),
+            title,
+            episode_title: "".to_string(),
+            description: item.description.clone(),
+            season,
+            episode,
+            fansub,
+            media_info,
+            torrent,
+        })
     }
 }
 
@@ -24,7 +88,7 @@ const EPISODE_TITLE_PATTERN: &str = r"^
 (?<media>[\[\(].*[\]\)])*
 $";
 
-fn parse_title(title: &str) -> (String, u64) {
+fn parse_bangumi_title(title: &str) -> (&str, u64) {
     let re = regex::Regex::new(TITLE_PATTERN).unwrap();
     match re.captures(title) {
         Some(captures) => {
@@ -43,9 +107,10 @@ fn parse_title(title: &str) -> (String, u64) {
                 "十" => 10,
                 _ => unimplemented!("implemented season number"),
             };
-            (title.to_string(), season)
+
+            (title, season)
         }
-        None => (title.to_string(), 1),
+        None => (title, 1),
     }
 }
 
@@ -67,74 +132,26 @@ impl RssParser for MikanParser {
 
                 let raw_title = rss.channel.title.as_str();
                 // strip "Mikan Project - " from title if present
-                let row_title_content = raw_title
+                let raw_title_content = raw_title
                     .strip_prefix("Mikan Project - ")
                     .unwrap_or(raw_title)
                     .to_string();
-                let (mut title, season) = parse_title(&row_title_content);
+                let (channel_title, channel_season) = parse_bangumi_title(&raw_title_content);
 
                 for item in rss.channel.item {
-                    let mut episode = 1u64;
-                    let mut fansub = "";
-                    let mut media_info = "";
-
-                    // e.g. [喵萌奶茶屋&amp;LoliHouse] 葬送的芙莉莲 / Sousou no Frieren - 17 [WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]
-                    let rss_title = item.title;
-
-                    match parser_episode_title(&rss_title) {
-                        Some(captures) => {
-                            // [喵萌奶茶屋&amp;LoliHouse]
-                            if let Some(fansub_part) = captures.name("fansub") {
-                                fansub = fansub_part.as_str();
-                            }
-                            // 葬送的芙莉莲 / Sousou no Frieren
-                            if let Some(title_part) = captures.name("title") {
-                                let title_part = title_part.as_str();
-                                let titles: Vec<_> = title_part.split('/').collect();
-
+                    match self.parse_rss_item(&item) {
+                        Ok(mut rss_item) => {
+                            if channel_title != "我的番组" {
                                 // prioritize the title in the rss header
-                                if title == "" && titles.len() > 1 {
-                                    title = titles[0].trim().to_string();
-                                }
+                                rss_item.title = channel_title.to_string();
+                                rss_item.season = channel_season;
                             }
-                            // 17
-                            if let Some(episode_part) = captures.name("episode") {
-                                episode = episode_part.as_str().parse::<u64>().unwrap();
-                            }
-                            // [WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]
-                            if let Some(media_part) = captures.name("media") {
-                                media_info = media_part.as_str();
-                            }
+                            rss_items.push(rss_item);
                         }
-                        None => {
-                            error!("Unrecognized episode: {}", rss_title);
-
-                            // Ignore the unrecognized episode and continue
-                            // return Err(super::ParsingError::UnrecognizedEpisode(
-                            //     rss_title.to_string(),
-                            // ));
+                        Err(err) => {
+                            error!("[parser] {}", err);
                         }
                     }
-
-                    let torrent = downloader::TorrentMetaBuilder::default()
-                        .url(item.enclosure.url)
-                        .content_len(item.enclosure.length)
-                        .pub_date(item.torrent.pub_date)
-                        .build()
-                        .unwrap();
-
-                    let rss_item = rss::RssSubscriptionItem {
-                        url: item.link,
-                        title: title.to_string(),
-                        episode_title: "".to_string(),
-                        description: item.description,
-                        season,
-                        episode,
-                        fansub: fansub.to_string(),
-                        media_info: media_info.to_string(),
-                        torrent,
-                    };
-                    rss_items.push(rss_item);
                 }
 
                 Ok(rss::RssSubscription {
@@ -263,7 +280,7 @@ mod tests {
                         .build()
                         .unwrap(),
                 },
-            ]
+            ],
         };
         assert_eq!(res, expect)
     }
@@ -296,8 +313,135 @@ mod tests {
                         .build()
                         .unwrap(),
                 },
-            ]
+            ],
         };
         assert_eq!(res, expect)
+    }
+
+    #[test]
+    fn parse_rss_aggregation() {
+        let rss_content = read_to_string("./tests/dataset/mikan-aggregation.rss").unwrap();
+        assert_ne!(&rss_content, "");
+
+        let parser = MikanParser::new();
+        let res = parser.parse_content(&rss_content).unwrap();
+
+        let expect = vec![
+            RssSubscriptionItem {
+                url: "https://mikanani.me/Home/Episode/38b3ab86bc9046f12edca2a2408ac1e7161a8c94".to_string(),
+                title: "梦想成为魔法少女".to_string(),
+                episode_title: "".to_string(),
+                description: "[GJ.Y] 梦想成为魔法少女 [年龄限制版] / Mahou Shoujo ni Akogarete - 11 (Baha 1920x1080 AVC AAC MP4)[528.96 MB]".to_string(),
+                season: 1,
+                episode: 11,
+                fansub: "[GJ.Y]".to_string(),
+                media_info: "(Baha 1920x1080 AVC AAC MP4)".to_string(),
+                torrent: TorrentMetaBuilder::default()
+                    .url("https://mikanani.me/Download/20240313/38b3ab86bc9046f12edca2a2408ac1e7161a8c94.torrent")
+                    .content_len(554654784u64)
+                    .pub_date("2024-03-13T23:31:32.102")
+                    .build()
+                    .unwrap(),
+            },
+            RssSubscriptionItem {
+                url: "https://mikanani.me/Home/Episode/d2e587e0e10d77fcebdc4552d0725e43e2fa2fe6".to_string(),
+                title: "战国妖狐".to_string(),
+                episode_title: "".to_string(),
+                description: "[GJ.Y] 战国妖狐 / Sengoku Youko - 10 (Baha 1920x1080 AVC AAC MP4)[624.03 MB]".to_string(),
+                season: 1,
+                episode: 10,
+                fansub: "[GJ.Y]".to_string(),
+                media_info: "(Baha 1920x1080 AVC AAC MP4)".to_string(),
+                torrent: TorrentMetaBuilder::default()
+                    .url("https://mikanani.me/Download/20240313/d2e587e0e10d77fcebdc4552d0725e43e2fa2fe6.torrent")
+                    .content_len(654342912u64)
+                    .pub_date("2024-03-13T23:02:04.724")
+                    .build()
+                    .unwrap(),
+            },
+            RssSubscriptionItem {
+                url: "https://mikanani.me/Home/Episode/ef56a70e19199829a0280cc022ece291fa186316".to_string(),
+                title: "欢迎来到实力至上主义的教室".to_string(),
+                episode_title: "".to_string(),
+                description: "[GJ.Y] 欢迎来到实力至上主义的教室 第三季 / Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e 3rd Season - 11 (CR 1920x1080 AVC AAC MKV)[1.37 GB]".to_string(),
+                season: 3,
+                episode: 11,
+                fansub: "[GJ.Y]".to_string(),
+                media_info: "(CR 1920x1080 AVC AAC MKV)".to_string(),
+                torrent: TorrentMetaBuilder::default()
+                    .url("https://mikanani.me/Download/20240313/ef56a70e19199829a0280cc022ece291fa186316.torrent")
+                    .content_len(1471026304u64)
+                    .pub_date("2024-03-13T22:01:57.497")
+                    .build()
+                    .unwrap(),
+            },
+            RssSubscriptionItem {
+                url: "https://mikanani.me/Home/Episode/49b9c8dd833629d39e09a4e9568bde6b6a71a01b".to_string(),
+                title: "弱势角色友崎君".to_string(),
+                episode_title: "".to_string(),
+                description: "[GJ.Y] 弱势角色友崎君 第二季 / Jaku-Chara Tomozaki-kun 2nd Stage - 11 (B-Global 1920x1080 HEVC AAC MKV)[239.66 MB]".to_string(),
+                season: 2,
+                episode: 11,
+                fansub: "[GJ.Y]".to_string(),
+                media_info: "(B-Global 1920x1080 HEVC AAC MKV)".to_string(),
+                torrent: TorrentMetaBuilder::default()
+                    .url("https://mikanani.me/Download/20240313/49b9c8dd833629d39e09a4e9568bde6b6a71a01b.torrent")
+                    .content_len(251301728u64)
+                    .pub_date("2024-03-13T20:31:07.116")
+                    .build()
+                    .unwrap(),
+            },
+            RssSubscriptionItem {
+                url: "https://mikanani.me/Home/Episode/f6d8f1b7131135c2c8b295aca18c64cb6405e2aa".to_string(),
+                title: "公主殿下，「拷问」的时间到了".to_string(),
+                episode_title: "".to_string(),
+                description: "[GJ.Y] 公主殿下，「拷问」的时间到了 / Himesama 'Goumon' no Jikan desu - 10 (CR 1920x1080 AVC AAC MKV)[1.37 GB]".to_string(),
+                season: 1,
+                episode: 10,
+                fansub: "[GJ.Y]".to_string(),
+                media_info: "(CR 1920x1080 AVC AAC MKV)".to_string(),
+                torrent: TorrentMetaBuilder::default()
+                    .url("https://mikanani.me/Download/20240312/f6d8f1b7131135c2c8b295aca18c64cb6405e2aa.torrent")
+                    .content_len(1471026304u64)
+                    .pub_date("2024-03-12T00:31:33.72")
+                    .build()
+                    .unwrap(),
+            },
+            RssSubscriptionItem {
+                url: "https://mikanani.me/Home/Episode/da075c8a8e0b9f71e130b978fb94e4def0745b30".to_string(),
+                title: "我内心的糟糕念头".to_string(),
+                episode_title: "".to_string(),
+                description: "[喵萌奶茶屋&LoliHouse] 我内心的糟糕念头 / Boku no Kokoro no Yabai Yatsu - 22 [WebRip 1080p HEVC-10bit AAC][简繁日内封字幕][273.57 MB]".to_string(),
+                season: 1,
+                episode: 22,
+                fansub: "[喵萌奶茶屋&LoliHouse]".to_string(),
+                media_info: "[WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]".to_string(),
+                torrent: TorrentMetaBuilder::default()
+                    .url("https://mikanani.me/Download/20240310/da075c8a8e0b9f71e130b978fb94e4def0745b30.torrent")
+                    .content_len(286858944u64)
+                    .pub_date("2024-03-10T20:46:52.314")
+                    .build()
+                    .unwrap(),
+            },
+            RssSubscriptionItem {
+                url: "https://mikanani.me/Home/Episode/6f9bb9e56663194eb68a0811890751d1e66f6fbd".to_string(),
+                title: "我独自升级".to_string(),
+                episode_title: "".to_string(),
+                description: "[GJ.Y] 我独自升级 / Ore dake Level Up na Ken - 09 (CR 1920x1080 AVC AAC MKV)[1.37 GB]".to_string(),
+                season: 1,
+                episode: 9,
+                fansub: "[GJ.Y]".to_string(),
+                media_info: "(CR 1920x1080 AVC AAC MKV)".to_string(),
+                torrent: TorrentMetaBuilder::default()
+                    .url("https://mikanani.me/Download/20240310/6f9bb9e56663194eb68a0811890751d1e66f6fbd.torrent")
+                    .content_len(1471026304u64)
+                    .pub_date("2024-03-10T01:31:34.279")
+                    .build()
+                    .unwrap(),
+            },
+        ];
+        res.items.iter().zip(expect.iter()).for_each(|(a, b)| {
+            assert_eq!(a, b);
+        });
     }
 }

@@ -1,7 +1,8 @@
 use crate::downloader::{Downloader, DownloaderError, DownloadingTorrent, TaskStatus, TorrentMeta};
 use async_trait::async_trait;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 pub struct DummyDownloader {
     download_list: Arc<Mutex<Vec<DownloadingTorrent>>>,
@@ -36,7 +37,7 @@ impl Downloader for DummyDownloader {
             name,
         };
 
-        let mut download_list_lock = self.download_list.lock().unwrap();
+        let mut download_list_lock = self.download_list.lock().await;
         {
             download_list_lock.push(downloading_torrent);
         }
@@ -44,7 +45,7 @@ impl Downloader for DummyDownloader {
     }
 
     async fn get_download_list(&self) -> Result<Vec<DownloadingTorrent>, DownloaderError> {
-        let download_list = self.download_list.lock().unwrap();
+        let download_list = self.download_list.lock().await;
         Ok(download_list.clone())
     }
 }
@@ -53,6 +54,8 @@ impl Downloader for DummyDownloader {
 mod tests {
     use super::*;
     use crate::downloader::{Torrent, TorrentMeta};
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
     use tokio::test;
 
     fn get_dummy_torrent() -> TorrentMeta {
@@ -63,7 +66,7 @@ mod tests {
 
         TorrentMeta {
             url: "https://example.com".to_string(),
-            data: Some(torrent),
+            data: Arc::new(Mutex::new(Some(torrent))),
             content_len: None,
             pub_date: None,
             save_path: None,
