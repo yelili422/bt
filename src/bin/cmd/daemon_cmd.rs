@@ -1,7 +1,7 @@
 use bt::rss::parsers;
 use bt::{downloader, renamer, rss};
 use clap::{Parser, Subcommand};
-use log::error;
+use log::{error, info};
 use std::path::Path;
 
 #[derive(Parser, Debug)]
@@ -33,6 +33,7 @@ pub async fn execute(subcommand: DaemonSubcommand) -> anyhow::Result<()> {
         } => loop {
             let default_downloader = downloader::get_downloader();
 
+            info!("[cmd] Fetching RSS feeds...");
             let pool = bt::get_pool().await?;
             let rss_list = rss::store::get_rss_list(&pool).await.unwrap_or_default();
             for rss in rss_list {
@@ -58,10 +59,12 @@ pub async fn execute(subcommand: DaemonSubcommand) -> anyhow::Result<()> {
                 }
             }
 
+            info!("[cmd] Updating task status...");
             // update task status
             let download_list = default_downloader.get_download_list().await?;
             downloader::update_task_status(&download_list).await?;
 
+            info!("[cmd] Renaming completed tasks...");
             // if task is done, rename the file and update the database
             let dst_folder = Path::new(&destination);
             for task in download_list {

@@ -1404,7 +1404,7 @@ dependencies = [
 [[package]]
 name = "qbittorrent"
 version = "0.2.0"
-source = "git+https://github.com/yeli-cn/qbittorrent.git#00d9f8757d61e955c284558ee8081f8088293cd4"
+source = "git+https://github.com/yeli-cn/qbittorrent.git#5500905d5347939d1ea144ec416ba4673ae66a74"
 dependencies = [
  "async-trait",
  "derive-getters",

@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, MutexGuard};
 use thiserror::Error;
 
 use crate::get_pool;
@@ -23,7 +24,7 @@ pub use task::*;
 pub struct TorrentMeta {
     /// The url of the torrent file
     url: String,
-    data: Option<Torrent>,
+    data: Arc<Mutex<Option<Torrent>>>,
     content_len: Option<u64>,
     pub_date: Option<String>,
     save_path: Option<String>,
@@ -56,19 +57,27 @@ impl TorrentMeta {
         Ok(content.to_vec())
     }
 
-    async fn fetch_torrent(&mut self) -> Result<(), TorrentInaccessibleError> {
-        if self.data.is_none() {
-            let dot_torrent = self.download_dot_torrent().await?;
-            let torrent = Torrent::from_bytes(&dot_torrent)
-                .map_err(|e| TorrentInaccessibleError(self.url.clone(), e.to_string()))?;
-            self.data = Some(torrent);
+    async fn fetch_torrent(&self) -> Result<(), TorrentInaccessibleError> {
+        let mut data_lock = self.data.lock().unwrap();
+        {
+            if data_lock.is_none() {
+                let dot_torrent = self.download_dot_torrent().await?;
+                let torrent = Torrent::from_bytes(&dot_torrent)
+                    .map_err(|e| TorrentInaccessibleError(self.url.clone(), e.to_string()))?;
+                *data_lock = Some(torrent);
+            }
         }
 
         Ok(())
     }
 
+    fn get_data(&self) -> MutexGuard<Option<Torrent>> {
+        self.data.lock().unwrap()
+    }
+
     async fn get_info_hash(&self) -> Result<String, TorrentInaccessibleError> {
-        match &self.data {
+        let data_lock = self.get_data();
+        match &*data_lock {
             Some(torrent) => Ok(hex::encode(torrent.info_hash())),
             None => {
                 panic!("Torrent data not fetched")
@@ -77,7 +86,7 @@ impl TorrentMeta {
     }
 
     async fn get_name(&self) -> Result<String, TorrentInaccessibleError> {
-        match &self.data {
+        match &*self.get_data() {
             Some(torrent) => Ok(torrent.info.name.clone()),
             None => {
                 panic!("Torrent data not fetched")
@@ -131,6 +140,7 @@ pub async fn download_with_state(
     torrent_meta: &TorrentMeta,
     bangumi_info: &BangumiInfo,
 ) -> anyhow::Result<()> {
+    torrent_meta.fetch_torrent().await?;
     let info_hash = torrent_meta.get_info_hash().await?;
 
     let created = store::add_task(
