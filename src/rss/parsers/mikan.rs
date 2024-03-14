@@ -1,3 +1,4 @@
+use log::error;
 use serde::{Deserialize, Serialize};
 
 use crate::rss::parsers::RssParser;
@@ -106,9 +107,12 @@ impl RssParser for MikanParser {
                             }
                         }
                         None => {
-                            return Err(super::ParsingError::UnrecognizedEpisode(
-                                rss_title.to_string(),
-                            ));
+                            error!("Unrecognized episode: {}", rss_title);
+
+                            // Ignore the unrecognized episode and continue
+                            // return Err(super::ParsingError::UnrecognizedEpisode(
+                            //     rss_title.to_string(),
+                            // ));
                         }
                     }
 

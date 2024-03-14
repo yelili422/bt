@@ -12,5 +12,5 @@ services:
       - WEBUI_PORTS=8080/tcp,8080/udp
     volumes:
       - ./data/qb/config:/config
-      - ./data/qb/data:/data
+      - ./data/qb/downloads:/downloads
     image: ghcr.io/hotio/qbittorrent

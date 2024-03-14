@@ -77,11 +77,7 @@ pub fn rename(info: &BangumiInfo, src_path: &Path, dst_folder: &Path) -> anyhow:
 }
 
 pub fn link(src_path: &Path, dst_path: &Path) -> anyhow::Result<()> {
-    info!(
-        "[renamer] Linking {} to {}",
-        src_path.display(),
-        dst_path.display()
-    );
+    info!("[renamer] Linking {} to {}", src_path.display(), dst_path.display());
     if !src_path.is_file() {
         return Err(anyhow::Error::msg("Only file type can be linked"));
     }

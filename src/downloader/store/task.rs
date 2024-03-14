@@ -148,8 +148,8 @@ pub async fn update_task_status(
 ) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
 
-    let status = status.to_string();
-    let download_path = path.display().to_string();
+    let status = &status.to_string();
+    let download_path = &path.display().to_string();
     query!(
         r#"UPDATE main.download_task SET status = ?1 , download_path = ?2 WHERE torrent_hash = ?3"#,
         status,
@@ -159,7 +159,10 @@ pub async fn update_task_status(
     .execute(&mut *tx)
     .await?;
 
-    info!("[store] Updated task [{}] status to {}.", torrent_hash, status);
+    info!(
+        "[store] Updated task [{}]({}) status to {}.",
+        torrent_hash, download_path, status
+    );
     tx.commit().await?;
     Ok(())
 }
