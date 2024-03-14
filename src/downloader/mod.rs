@@ -8,8 +8,9 @@ use async_trait::async_trait;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::Arc;
 use thiserror::Error;
+use tokio::sync::{Mutex, MutexGuard};
 
 use crate::get_pool;
 use crate::renamer::BangumiInfo;
@@ -24,6 +25,7 @@ pub use task::*;
 pub struct TorrentMeta {
     /// The url of the torrent file
     url: String,
+    #[serde(skip_serializing, skip_deserializing)]
     data: Arc<Mutex<Option<Torrent>>>,
     content_len: Option<u64>,
     pub_date: Option<String>,
@@ -58,7 +60,7 @@ impl TorrentMeta {
     }
 
     async fn fetch_torrent(&self) -> Result<(), TorrentInaccessibleError> {
-        let mut data_lock = self.data.lock().unwrap();
+        let mut data_lock = self.data.lock().await;
         {
             if data_lock.is_none() {
                 let dot_torrent = self.download_dot_torrent().await?;
@@ -71,12 +73,12 @@ impl TorrentMeta {
         Ok(())
     }
 
-    fn get_data(&self) -> MutexGuard<Option<Torrent>> {
-        self.data.lock().unwrap()
+    async fn get_data(&self) -> MutexGuard<Option<Torrent>> {
+        self.data.lock().await
     }
 
     async fn get_info_hash(&self) -> Result<String, TorrentInaccessibleError> {
-        let data_lock = self.get_data();
+        let data_lock = self.get_data().await;
         match &*data_lock {
             Some(torrent) => Ok(hex::encode(torrent.info_hash())),
             None => {
@@ -86,7 +88,7 @@ impl TorrentMeta {
     }
 
     async fn get_name(&self) -> Result<String, TorrentInaccessibleError> {
-        match &*self.get_data() {
+        match &*self.get_data().await {
             Some(torrent) => Ok(torrent.info.name.clone()),
             None => {
                 panic!("Torrent data not fetched")
@@ -136,7 +138,7 @@ pub trait Downloader: Send + Sync {
 }
 
 pub async fn download_with_state(
-    downloader: &dyn Downloader,
+    downloader: Arc<Mutex<Box<dyn Downloader>>>,
     torrent_meta: &TorrentMeta,
     bangumi_info: &BangumiInfo,
 ) -> anyhow::Result<()> {
@@ -159,7 +161,8 @@ pub async fn download_with_state(
     .await?;
 
     if created != 0 {
-        downloader.download(torrent_meta).await?;
+        let downloader_lock = downloader.lock().await;
+        downloader_lock.download(torrent_meta).await?;
     }
 
     Ok(())
