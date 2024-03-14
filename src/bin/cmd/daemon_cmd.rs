@@ -2,7 +2,7 @@ use bt::rss::parsers;
 use bt::{downloader, renamer, rss};
 use clap::{Parser, Subcommand};
 use log::{error, info};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -19,9 +19,14 @@ enum DaemonCommands {
         #[arg(long, short, default_value = "300")]
         interval: u64,
 
+        /// Downloading path map
+        /// e.g., `/downloads:/mnt/data/downloads`
+        #[arg(long, short)]
+        downloading_path_map: Option<String>,
+
         /// Archived directory
         #[arg(long, short)]
-        destination: String,
+        archived_path: String,
     },
 }
 
@@ -29,7 +34,8 @@ pub async fn execute(subcommand: DaemonSubcommand) -> anyhow::Result<()> {
     match subcommand.command {
         DaemonCommands::Start {
             interval,
-            destination,
+            downloading_path_map,
+            archived_path,
         } => loop {
             let default_downloader = downloader::get_downloader();
 
@@ -66,12 +72,18 @@ pub async fn execute(subcommand: DaemonSubcommand) -> anyhow::Result<()> {
 
             info!("[cmd] Renaming completed tasks...");
             // if task is done, rename the file and update the database
-            let dst_folder = Path::new(&destination);
+            let dst_folder = Path::new(&archived_path);
             for task in download_list {
                 if task.status == downloader::TaskStatus::Completed {
+                    let mut file_path = PathBuf::from(task.save_path).join(task.name);
+
+                    if let Some(path_map) = downloading_path_map.as_ref() {
+                        file_path = renamer::replace_path(file_path, path_map);
+                    }
+
                     renamer::rename(
                         &downloader::get_bangumi_info(&task.hash).await?,
-                        &task.get_file_path(),
+                        &file_path,
                         dst_folder,
                     )?;
                     downloader::set_task_renamed(&task.hash).await?;

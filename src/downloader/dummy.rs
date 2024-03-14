@@ -22,7 +22,7 @@ impl Downloader for DummyDownloader {
         let name = torrent.get_name().await.unwrap();
         let hash = torrent.get_info_hash().await.unwrap();
 
-        let path = format!("./data/download/{}/{}", category, name);
+        let path = format!("./data/dummy/downloads/{}/{}", category, name);
         let path = Path::new(&path);
         if !path.exists() {
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();

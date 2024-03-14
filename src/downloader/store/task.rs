@@ -21,7 +21,13 @@ pub async fn add_task(
     if let Some(task) = rec {
         // if the task is already completed or downloading, return the 0
         let task_status = TaskStatus::from_str(&task.status).unwrap();
-        if vec![TaskStatus::Completed, TaskStatus::Downloading].contains(&task_status) {
+        if vec![
+            TaskStatus::Completed,
+            TaskStatus::Downloading,
+            TaskStatus::Pause,
+        ]
+        .contains(&task_status)
+        {
             return Ok(0);
         }
 

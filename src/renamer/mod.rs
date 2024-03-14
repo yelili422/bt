@@ -1,5 +1,5 @@
 use derive_builder::Builder;
-use log::{debug, info};
+use log::info;
 use std::path::{Path, PathBuf};
 
 #[derive(Default, Builder, Debug, PartialEq, Eq)]
@@ -56,13 +56,15 @@ impl BangumiInfo {
 /// and the `dst_folder` is `/media/TV`,
 /// it should be linked to `/media/TV/Sousou no Frieren/Season 1/Sousou no Frieren S01E01.mkv`.
 pub fn rename(info: &BangumiInfo, src_path: &Path, dst_folder: &Path) -> anyhow::Result<()> {
+    info!("[rename] Renaming {} to {}", src_path.display(), info.gen_path("mkv").display());
+
     if !src_path.exists() {
-        return Err(anyhow::Error::msg("File does not exist"));
+        return Err(anyhow::Error::msg(format!("File {} not exists", src_path.display())));
     }
 
     // TODO: support folder
     if !src_path.is_file() {
-        return Err(anyhow::Error::msg("Unsupported file type"));
+        return Err(anyhow::Error::msg(format!("Unsupported file type: {}", src_path.display())));
     }
 
     let extension = src_path
@@ -77,24 +79,39 @@ pub fn rename(info: &BangumiInfo, src_path: &Path, dst_folder: &Path) -> anyhow:
 }
 
 pub fn link(src_path: &Path, dst_path: &Path) -> anyhow::Result<()> {
-    info!("[renamer] Linking {} to {}", src_path.display(), dst_path.display());
+    info!("[rename] Linking {} to {}", src_path.display(), dst_path.display());
     if !src_path.is_file() {
         return Err(anyhow::Error::msg("Only file type can be linked"));
     }
 
     let dst_parent = dst_path.parent().unwrap();
     if !dst_parent.exists() {
+        info!("[rename] Target folder {} not exists, creating", dst_parent.display());
         std::fs::create_dir_all(dst_parent)?;
     }
 
     if dst_path.exists() {
-        debug!("[renamer] File {} already linked", dst_path.display());
+        info!("[rename] File {} already linked", dst_path.display());
         return Ok(());
     }
 
     std::fs::hard_link(src_path, dst_path)?;
 
     Ok(())
+}
+
+/// Replace the path according to the rule.
+/// e.g. `path` is "/download/Sousou no Frieren S01E01.mkv",
+/// and `replace_rule` is "/download:/tmp",
+/// it should return "/tmp/Sousou no Frieren S01E01.mkv"
+pub fn replace_path(path: PathBuf, replace_rule: &str) -> PathBuf {
+    let path = path.to_str().unwrap();
+
+    let mut replace_rule = replace_rule.split(':');
+    let src = replace_rule.next().unwrap();
+    let dst = replace_rule.next().unwrap();
+
+    PathBuf::from(path.replace(src, dst))
 }
 
 #[cfg(test)]
