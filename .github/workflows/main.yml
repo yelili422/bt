@@ -19,14 +19,9 @@ jobs:
     - uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         rust-version: 1.76.0
-    - name: Install Dependencies
-      run: cargo install sqlx-cli
-    - name: Initialize Database
-      run: |
-        sqlx database create
-        sqlx migrate run
-        cargo sqlx prepare
+    - name: Migrate Database
+      run: make migrate
     - name: Build
-      run: cargo build --verbose
+      run: make build
     - name: Test
-      run: cargo test --verbose
+      run: make test
