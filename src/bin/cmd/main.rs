@@ -3,6 +3,8 @@ mod rss_cmd;
 
 use clap::{Parser, Subcommand};
 use log::info;
+use dotenvy::dotenv;
+use bt::get_pool;
 
 // The Bangumi Tools CLI
 #[derive(Parser, Debug)]
@@ -21,14 +23,16 @@ enum Commands {
 fn main() {
     env_logger::init();
 
-    if let Err(err) = dotenv::dotenv() {
+    if let Err(err) = dotenv() {
         info!("Failed to load .env file: {}", err);
     }
 
     let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
     rt.block_on(async {
-        let args = Cli::parse();
+        let pool = get_pool().await.expect("Failed to create database pool");
+        sqlx::migrate!("./migrations").run(&pool).await.expect("Failed to run database migrations");
 
+        let args = Cli::parse();
         match args.command {
             Commands::Daemon(subcommand) => daemon_cmd::execute(subcommand).await,
             Commands::Rss(subcommand) => rss_cmd::execute(subcommand).await,
