@@ -10,7 +10,6 @@ endif
 
 .PHONY: build
 build: sqlx-prepare
-	@echo "$(MODE) build..."
 	cargo build --bin cmd $(BUILD_ARGS)
 
 .PHONE: sqlx-prepare
