@@ -3,7 +3,6 @@ mod rss_cmd;
 
 use clap::{Parser, Subcommand};
 use log::info;
-use std::path::PathBuf;
 
 // The Bangumi Tools CLI
 #[derive(Parser, Debug)]

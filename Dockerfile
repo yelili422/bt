@@ -1,16 +1,14 @@
 FROM rust:1.76.0-bookworm AS builder
 
-ENV APP_PATH=/bt
-ENV DATABASE_URL=sqlite://$APP_PATH/data/bt.db
+ENV DATABASE_URL=sqlite:///bt/data/bt.db
 
-WORKDIR $APP_PATH
+WORKDIR /bt
 
 COPY . .
 RUN apt-get update && apt-get install -y \
     libssl-dev \
     gcc
 
-RUN mkdir data
 RUN make install INSTALL_PATH=.
 
 FROM debian:bookworm AS runtime
@@ -28,7 +26,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/local/cargo/bin/cmd /usr/bin
-COPY --from=builder /bt/data /bt/data
+COPY --from=builder /bt/data/bt.db /bt/data/
 COPY entrypoint.sh /entrypoint.sh
 
 ENTRYPOINT [ "/entrypoint.sh" ]
