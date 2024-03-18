@@ -2,6 +2,8 @@ mod daemon_cmd;
 mod rss_cmd;
 
 use clap::{Parser, Subcommand};
+use log::info;
+use std::path::PathBuf;
 
 // The Bangumi Tools CLI
 #[derive(Parser, Debug)]
@@ -17,11 +19,14 @@ enum Commands {
     Rss(rss_cmd::RssSubcommand),
 }
 
-fn main() -> anyhow::Result<()> {
-    dotenv::dotenv()?;
+fn main() {
     env_logger::init();
 
-    let rt = tokio::runtime::Runtime::new()?;
+    if let Err(err) = dotenv::dotenv() {
+        info!("Failed to load .env file: {}", err);
+    }
+
+    let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
     rt.block_on(async {
         let args = Cli::parse();
 
@@ -30,4 +35,5 @@ fn main() -> anyhow::Result<()> {
             Commands::Rss(subcommand) => rss_cmd::execute(subcommand).await,
         }
     })
+    .expect("Failed to run Tokio runtime");
 }

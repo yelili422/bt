@@ -26,9 +26,11 @@ install: sqlx-prepare
 sqlx-prepare:
 ifndef SQLX_CLI_VERSION
 	@echo "sqlx-cli not found, installing..."
-	@cargo install sqlx-cli
+	@cargo install sqlx-cli --no-default-features --features sqlite
 endif
-	cargo sqlx prepare
+	sqlx database create -D $(DATABASE_URL)
+	sqlx migrate run -D $(DATABASE_URL)
+	cargo sqlx prepare -D $(DATABASE_URL)
 
 .PHONY: test
 test: build

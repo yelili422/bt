@@ -25,12 +25,12 @@ enum DaemonCommands {
         /// Downloading path mapping
         /// Format: `src_path:dst_path`
         /// e.g., `/downloads:/mnt/data/downloads`
-        #[arg(long, short)]
+        #[arg(long, short = 'm')]
         downloading_path_map: Option<String>,
 
         /// Archived directory
         /// All completed tasks will be moved to this directory
-        #[arg(long, short)]
+        #[arg(long, short = 'a')]
         archived_path: String,
     },
 }
@@ -52,6 +52,7 @@ pub async fn execute(subcommand: DaemonSubcommand) -> anyhow::Result<()> {
                         .unwrap_or_else(|e| {
                             error!("[cmd] Failed to fetch RSS feeds: {:?}", e);
                         });
+                    info!("[cmd] Waiting {} seconds for the next update...", interval);
                     tokio::time::sleep(tokio::time::Duration::from_secs(interval)).await;
                 }
             });
