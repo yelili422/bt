@@ -30,11 +30,6 @@ endif
 test: build
 	cargo test --verbose
 
-.PHONY: migrate
-migrate:
-	sqlx database create && \
-	sqlx migrate run
-
 .PHONY: fmt
 fmt:
 	cargo fmt
