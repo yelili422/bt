@@ -6,7 +6,7 @@ mod task;
 
 use async_trait::async_trait;
 use derive_builder::Builder;
-use log::debug;
+use log::{debug, error};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::{Path, PathBuf};
@@ -155,8 +155,11 @@ pub async fn download_with_state(
     torrent_meta.fetch_torrent().await?;
     let info_hash = torrent_meta.get_info_hash().await?;
 
+    let pool = get_pool().await?;
+    let mut tx = pool.begin().await?;
+
     let created = store::add_task(
-        &get_pool().await?,
+        &mut tx,
         &DownloadTaskBuilder::default()
             .id(None)
             .torrent_hash(info_hash)
@@ -171,9 +174,20 @@ pub async fn download_with_state(
     .await?;
 
     // FIXME: if download task is not created in downloader, rollback
-    if created != 0 {
-        let downloader_lock = downloader.lock().await;
-        downloader_lock.download(torrent_meta).await?;
+    if created == 0 {
+        // Skip downloading if the task is already created
+        return Ok(());
+    }
+
+    let downloader_lock = downloader.lock().await;
+    match downloader_lock.download(torrent_meta).await {
+        Ok(_) => {
+            tx.commit().await?;
+        }
+        Err(err) => {
+            error!("Failed to download torrent: {}", err);
+            tx.rollback().await?;
+        }
     }
 
     Ok(())
@@ -187,12 +201,14 @@ pub async fn get_bangumi_info(torrent_hash: &str) -> anyhow::Result<BangumiInfo>
 
 pub async fn update_task_status(download_list: &Vec<DownloadingTorrent>) -> anyhow::Result<()> {
     let pool = get_pool().await?;
+    let mut tx = pool.begin().await?;
+
     for torrent in download_list {
         match store::get_task(&pool, &torrent.hash).await {
             Ok(task) => {
                 if task.status != torrent.status {
                     store::update_task_status(
-                        &pool,
+                        &mut tx,
                         &torrent.hash,
                         torrent.status,
                         torrent.get_file_path().as_path(),
@@ -208,6 +224,8 @@ pub async fn update_task_status(download_list: &Vec<DownloadingTorrent>) -> anyh
             }
         }
     }
+
+    tx.commit().await?;
     Ok(())
 }
 

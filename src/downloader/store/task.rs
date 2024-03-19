@@ -6,16 +6,14 @@ use std::path::Path;
 use std::str::FromStr;
 
 pub async fn add_task(
-    pool: &sqlx::SqlitePool,
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     task: &DownloadTask,
     bangumi_info: &BangumiInfo,
 ) -> Result<i64, sqlx::Error> {
-    let mut tx = pool.begin().await?;
-
     // check if the task is already in the database
     let rec =
         query!(r#"SELECT * FROM main.download_task WHERE torrent_hash = ?1"#, task.torrent_hash,)
-            .fetch_optional(&mut *tx)
+            .fetch_optional(&mut **tx)
             .await?;
 
     if let Some(task) = rec {
@@ -33,7 +31,7 @@ pub async fn add_task(
 
         // else remove the task to update all the fields
         query!(r#"DELETE FROM main.download_task WHERE torrent_hash = ?1"#, task.torrent_hash,)
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await?;
     }
 
@@ -61,7 +59,7 @@ RETURNING id
         bangumi_info.category,
         task.renamed,
     )
-    .fetch_one(&mut *tx)
+    .fetch_one(&mut **tx)
     .await?;
 
     info!(
@@ -69,7 +67,6 @@ RETURNING id
         bangumi_info.show_name, bangumi_info.season, bangumi_info.episode, task.torrent_hash
     );
 
-    tx.commit().await?;
     Ok(rec.id)
 }
 
@@ -147,13 +144,11 @@ pub async fn get_bangumi_info(
 }
 
 pub async fn update_task_status(
-    pool: &sqlx::SqlitePool,
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     torrent_hash: &str,
     status: TaskStatus,
     path: &Path,
 ) -> Result<(), sqlx::Error> {
-    let mut tx = pool.begin().await?;
-
     let status = &status.to_string();
     let download_path = &path.display().to_string();
     query!(
@@ -162,14 +157,13 @@ pub async fn update_task_status(
         download_path,
         torrent_hash
     )
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await?;
 
     info!(
         "[store] Updated task [{}]({}) status to {}.",
         torrent_hash, download_path, status
     );
-    tx.commit().await?;
     Ok(())
 }
 
