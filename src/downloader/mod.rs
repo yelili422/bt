@@ -4,10 +4,11 @@ mod qbittorrent;
 mod store;
 mod task;
 
-use std::env;
 use async_trait::async_trait;
 use derive_builder::Builder;
+use log::debug;
 use serde::{Deserialize, Serialize};
+use std::env;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use strum_macros::EnumString;
@@ -169,6 +170,7 @@ pub async fn download_with_state(
     )
     .await?;
 
+    // FIXME: if download task is not created in downloader, rollback
     if created != 0 {
         let downloader_lock = downloader.lock().await;
         downloader_lock.download(torrent_meta).await?;
@@ -186,15 +188,24 @@ pub async fn get_bangumi_info(torrent_hash: &str) -> anyhow::Result<BangumiInfo>
 pub async fn update_task_status(download_list: &Vec<DownloadingTorrent>) -> anyhow::Result<()> {
     let pool = get_pool().await?;
     for torrent in download_list {
-        let task = store::get_task(&pool, &torrent.hash).await?;
-        if task.status != torrent.status {
-            store::update_task_status(
-                &pool,
-                &torrent.hash,
-                torrent.status,
-                torrent.get_file_path().as_path(),
-            )
-            .await?;
+        match store::get_task(&pool, &torrent.hash).await {
+            Ok(task) => {
+                if task.status != torrent.status {
+                    store::update_task_status(
+                        &pool,
+                        &torrent.hash,
+                        torrent.status,
+                        torrent.get_file_path().as_path(),
+                    )
+                    .await?;
+                }
+            }
+            Err(err) => {
+                debug!(
+                    "Skip updating task status created by other process: [{}]{}",
+                    &torrent.hash, err
+                );
+            }
         }
     }
     Ok(())
