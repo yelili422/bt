@@ -9,6 +9,7 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use strum_macros::EnumString;
 use thiserror::Error;
 use tokio::sync::{Mutex, MutexGuard};
 
@@ -137,6 +138,13 @@ pub trait Downloader: Send + Sync {
     async fn get_download_list(&self) -> Result<Vec<DownloadingTorrent>, DownloaderError>;
 }
 
+#[derive(Debug, Clone, EnumString)]
+#[strum(serialize_all = "snake_case")]
+enum DownloaderType {
+    QBittorrent,
+    Dummy,
+}
+
 pub async fn download_with_state(
     downloader: Arc<Mutex<Box<dyn Downloader>>>,
     torrent_meta: &TorrentMeta,
@@ -199,8 +207,18 @@ pub async fn set_task_renamed(torrent_hash: &str) -> anyhow::Result<()> {
 
 #[cfg(not(test))]
 pub fn get_downloader() -> Box<dyn Downloader> {
-    // TODO: Read from config
-    Box::new(QBittorrentDownloader::new("admin", "adminadmin", "http://localhost:8080"))
+    use std::str::FromStr;
+
+    let downloader_type = env!("DOWNLOADER_TYPE");
+    match DownloaderType::from_str(downloader_type) {
+        Ok(DownloaderType::QBittorrent) => {
+            let username = env!("DOWNLOADER_USERNAME");
+            let password = env!("DOWNLOADER_PASSWORD");
+            let url = env!("DOWNLOADER_HOST");
+            Box::new(QBittorrentDownloader::new(username, password, url))
+        }
+        _ => panic!("Invalid downloader type, {}", downloader_type),
+    }
 }
 
 #[cfg(test)]

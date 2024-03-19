@@ -1,10 +1,10 @@
 mod daemon_cmd;
 mod rss_cmd;
 
-use clap::{Parser, Subcommand};
-use log::info;
-use dotenvy::dotenv;
 use bt::get_pool;
+use clap::{Parser, Subcommand};
+use dotenvy::dotenv;
+use log::info;
 
 // The Bangumi Tools CLI
 #[derive(Parser, Debug)]
@@ -30,7 +30,10 @@ fn main() {
     let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
     rt.block_on(async {
         let pool = get_pool().await.expect("Failed to create database pool");
-        sqlx::migrate!("./migrations").run(&pool).await.expect("Failed to run database migrations");
+        sqlx::migrate!("./migrations")
+            .run(&pool)
+            .await
+            .expect("Failed to run database migrations");
 
         let args = Cli::parse();
         match args.command {
