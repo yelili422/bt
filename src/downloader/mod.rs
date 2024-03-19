@@ -139,7 +139,7 @@ pub trait Downloader: Send + Sync {
 }
 
 #[derive(Debug, Clone, EnumString)]
-#[strum(serialize_all = "snake_case")]
+#[strum(serialize_all = "lowercase")]
 enum DownloaderType {
     QBittorrent,
     Dummy,
