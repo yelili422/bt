@@ -105,6 +105,9 @@ pub fn link(src_path: &Path, dst_path: &Path) -> anyhow::Result<()> {
 /// and `replace_rule` is "/download:/tmp",
 /// it should return "/tmp/Sousou no Frieren S01E01.mkv"
 pub fn replace_path(path: PathBuf, replace_rule: &str) -> PathBuf {
+    if replace_rule.is_empty() {
+        return path;
+    }
     let path = path.to_str().unwrap();
 
     let mut replace_rule = replace_rule.split(':');
