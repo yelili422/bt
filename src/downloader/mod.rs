@@ -4,6 +4,7 @@ mod qbittorrent;
 mod store;
 mod task;
 
+use std::env;
 use async_trait::async_trait;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
@@ -209,13 +210,13 @@ pub async fn set_task_renamed(torrent_hash: &str) -> anyhow::Result<()> {
 pub fn get_downloader() -> Box<dyn Downloader> {
     use std::str::FromStr;
 
-    let downloader_type = env!("DOWNLOADER_TYPE");
-    match DownloaderType::from_str(downloader_type) {
+    let downloader_type = env::var("DOWNLOADER_TYPE").unwrap_or_default();
+    match DownloaderType::from_str(&downloader_type) {
         Ok(DownloaderType::QBittorrent) => {
-            let username = env!("DOWNLOADER_USERNAME");
-            let password = env!("DOWNLOADER_PASSWORD");
-            let url = env!("DOWNLOADER_HOST");
-            Box::new(QBittorrentDownloader::new(username, password, url))
+            let username = env::var("DOWNLOADER_USERNAME").unwrap_or_default();
+            let password = env::var("DOWNLOADER_PASSWORD").unwrap_or_default();
+            let url = env::var("DOWNLOADER_HOST").unwrap_or_default();
+            Box::new(QBittorrentDownloader::new(&username, &password, &url))
         }
         _ => panic!("Invalid downloader type, {}", downloader_type),
     }
