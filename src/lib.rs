@@ -10,7 +10,7 @@ use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::SqlitePool;
 use tokio::sync::Mutex;
 
-// pub mod api;
+pub mod api;
 pub mod downloader;
 pub mod renamer;
 pub mod rss;
