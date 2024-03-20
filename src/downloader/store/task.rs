@@ -143,7 +143,7 @@ pub async fn get_bangumi_info(
             episode_name: rec.episode_name,
             display_name: rec.display_name,
             season: rec.season.unwrap_or(1) as u64,
-            episode: rec.season.unwrap_or(1) as u64,
+            episode: rec.episode.unwrap_or(1) as u64,
             category: rec.category,
         })),
     }
