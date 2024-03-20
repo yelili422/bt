@@ -31,11 +31,15 @@ impl BangumiInfo {
         file_name.push_str(&format!(" S{:02}E{:02}", self.season, self.episode));
 
         if let Some(ref episode_name) = self.episode_name {
-            file_name.push_str(&format!(" {}", episode_name));
+            if !episode_name.is_empty() {
+                file_name.push_str(&format!(" {}", episode_name));
+            }
         }
 
         if let Some(ref display_name) = self.display_name {
-            file_name.push_str(&format!(" {}", display_name));
+            if !display_name.is_empty() {
+                file_name.push_str(&format!(" {}", display_name));
+            }
         }
 
         file_name.push_str(extension);
