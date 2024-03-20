@@ -193,7 +193,7 @@ pub async fn download_with_state(
     Ok(())
 }
 
-pub async fn get_bangumi_info(torrent_hash: &str) -> anyhow::Result<BangumiInfo> {
+pub async fn get_bangumi_info(torrent_hash: &str) -> anyhow::Result<Option<BangumiInfo>> {
     let info = store::get_bangumi_info(&get_pool().await?, torrent_hash).await?;
 
     Ok(info)
@@ -204,8 +204,8 @@ pub async fn update_task_status(download_list: &Vec<DownloadingTorrent>) -> anyh
     let mut tx = pool.begin().await?;
 
     for torrent in download_list {
-        match store::get_task(&pool, &torrent.hash).await {
-            Ok(task) => {
+        match store::get_task(&pool, &torrent.hash).await? {
+            Some(task) => {
                 if task.status != torrent.status {
                     store::update_task_status(
                         &mut tx,
@@ -216,11 +216,8 @@ pub async fn update_task_status(download_list: &Vec<DownloadingTorrent>) -> anyh
                     .await?;
                 }
             }
-            Err(err) => {
-                debug!(
-                    "Skip updating task status created by other process: [{}]{}",
-                    &torrent.hash, err
-                );
+            None => {
+                debug!("Skip updating task status created by other process: [{}]", &torrent.hash);
             }
         }
     }

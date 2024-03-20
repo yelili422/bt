@@ -73,23 +73,26 @@ RETURNING id
 pub async fn get_task(
     pool: &sqlx::SqlitePool,
     torrent_hash: &str,
-) -> Result<DownloadTask, sqlx::Error> {
+) -> Result<Option<DownloadTask>, sqlx::Error> {
     let mut tx = pool.begin().await?;
 
     let rec = query!(r#"SELECT * FROM main.download_task WHERE torrent_hash = ?1"#, torrent_hash)
-        .fetch_one(&mut *tx)
+        .fetch_optional(&mut *tx)
         .await?;
 
-    Ok(DownloadTask {
-        id: Some(rec.id),
-        torrent_hash: rec.torrent_hash,
-        torrent_url: rec.torrent_url,
-        start_time: chrono::DateTime::parse_from_rfc3339(&rec.start_time)
-            .unwrap()
-            .into(),
-        status: TaskStatus::from_str(&rec.status).unwrap(),
-        renamed: rec.renamed == 1,
-    })
+    match rec {
+        None => return Ok(None),
+        Some(rec) => Ok(Some(DownloadTask {
+            id: Some(rec.id),
+            torrent_hash: rec.torrent_hash,
+            torrent_url: rec.torrent_url,
+            start_time: chrono::DateTime::parse_from_rfc3339(&rec.start_time)
+                .unwrap()
+                .into(),
+            status: TaskStatus::from_str(&rec.status).unwrap(),
+            renamed: rec.renamed == 1,
+        })),
+    }
 }
 
 #[allow(unused)]
@@ -126,21 +129,24 @@ pub async fn get_tasks_need_renamed(
 pub async fn get_bangumi_info(
     pool: &sqlx::SqlitePool,
     torrent_hash: &str,
-) -> Result<BangumiInfo, sqlx::Error> {
+) -> Result<Option<BangumiInfo>, sqlx::Error> {
     let mut tx = pool.begin().await?;
 
     let rec = query!(r#"SELECT * FROM main.download_task WHERE torrent_hash = ?1"#, torrent_hash)
-        .fetch_one(&mut *tx)
+        .fetch_optional(&mut *tx)
         .await?;
 
-    Ok(BangumiInfo {
-        show_name: rec.show_name,
-        episode_name: rec.episode_name,
-        display_name: rec.display_name,
-        season: rec.season.unwrap_or(1) as u64,
-        episode: rec.season.unwrap_or(1) as u64,
-        category: rec.category,
-    })
+    match rec {
+        None => return Ok(None),
+        Some(rec) => Ok(Some(BangumiInfo {
+            show_name: rec.show_name,
+            episode_name: rec.episode_name,
+            display_name: rec.display_name,
+            season: rec.season.unwrap_or(1) as u64,
+            episode: rec.season.unwrap_or(1) as u64,
+            category: rec.category,
+        })),
+    }
 }
 
 pub async fn update_task_status(

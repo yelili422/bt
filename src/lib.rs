@@ -1,19 +1,19 @@
+use log::{debug, error, info};
 use std::env;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
-use log::{error, info};
 
+use crate::downloader::Downloader;
+use crate::rss::parsers;
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::SqlitePool;
 use tokio::sync::Mutex;
-use crate::downloader::Downloader;
-use crate::rss::parsers;
 
+// pub mod api;
 pub mod downloader;
 pub mod renamer;
 pub mod rss;
-
 
 pub async fn download_rss_feeds(downloader: Arc<Mutex<Box<dyn Downloader>>>) -> anyhow::Result<()> {
     info!("[rss] Fetching RSS feeds...");
@@ -29,10 +29,10 @@ pub async fn download_rss_feeds(downloader: Arc<Mutex<Box<dyn Downloader>>>) -> 
                         &feed.torrent,
                         &feed.into(),
                     )
-                        .await
-                        .unwrap_or_else(|e| {
-                            error!("[parser] Failed to download torrent: {:?}", e);
-                        });
+                    .await
+                    .unwrap_or_else(|e| {
+                        error!("[parser] Failed to download torrent: {:?}", e);
+                    });
                     tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
                 }
             }
@@ -48,7 +48,7 @@ pub async fn download_rss_feeds(downloader: Arc<Mutex<Box<dyn Downloader>>>) -> 
 pub async fn check_downloading_tasks(
     downloader: Arc<Mutex<Box<dyn Downloader>>>,
     archived_path: String,
-    downloading_path_map: Option<String>,
+    download_path_mapping: Option<String>,
 ) -> anyhow::Result<()> {
     // update task status
     info!("[downloader] Updating task status...");
@@ -60,33 +60,30 @@ pub async fn check_downloading_tasks(
     downloader::update_task_status(&download_list).await?;
 
     // if task is done, rename the file and update the database
-    info!("[cmd] Renaming completed tasks...");
+    info!("[renamer] Renaming completed tasks...");
     let dst_folder = Path::new(&archived_path);
     for task in download_list {
         if task.status == downloader::TaskStatus::Completed {
             let mut file_path = PathBuf::from(task.save_path).join(task.name);
 
-            if let Some(path_map) = downloading_path_map.as_ref() {
+            if let Some(path_map) = download_path_mapping.as_ref() {
                 file_path = renamer::replace_path(file_path, path_map);
             }
 
-            match renamer::rename(
-                &downloader::get_bangumi_info(&task.hash).await?,
-                &file_path,
-                dst_folder,
-            ) {
-                Ok(_) => {}
-                Err(e) => {
-                    error!("[cmd] Failed to rename: {:?}", e);
+            match downloader::get_bangumi_info(&task.hash).await? {
+                Some(info) => {
+                    renamer::rename(&info, &file_path, dst_folder)?;
+                    downloader::set_task_renamed(&task.hash).await?;
+                }
+                None => {
+                    debug!("[renamer] Skip renaming task [{}] without media info", task.hash);
                 }
             }
-            downloader::set_task_renamed(&task.hash).await?;
         }
     }
 
     Ok(())
 }
-
 
 pub async fn get_pool() -> anyhow::Result<SqlitePool> {
     // TODO: reuse the pool if it already exists
