@@ -16,6 +16,7 @@ pub struct DownloadTask {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Display, EnumString)]
 #[strum(serialize_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
 pub enum TaskStatus {
     Pause,
     Error,

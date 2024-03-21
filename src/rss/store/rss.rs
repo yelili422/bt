@@ -1,10 +1,11 @@
 use crate::rss::RssType;
 use derive_builder::Builder;
 use log::info;
+use serde::{Deserialize, Serialize};
 use sqlx::{query, SqlitePool};
 use std::str::FromStr;
 
-#[derive(Debug, Builder)]
+#[derive(Debug, Builder, Serialize, Deserialize)]
 #[builder(setter(into))]
 pub struct RssEntity {
     #[allow(unused)]

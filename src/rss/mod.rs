@@ -14,8 +14,9 @@ pub struct Rss {
 }
 
 #[allow(unused)]
-#[derive(Debug, PartialEq, Eq, Clone, Display, EnumString)]
+#[derive(Debug, PartialEq, Eq, Clone, Display, EnumString, Serialize, Deserialize)]
 #[strum(serialize_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum RssType {
     Mikan,
 }
