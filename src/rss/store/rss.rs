@@ -13,6 +13,8 @@ pub struct RssEntity {
     pub url: String,
     pub title: Option<String>,
     pub rss_type: RssType,
+    pub enabled: bool,
+    pub season: Option<u64>,
 }
 
 pub async fn add_rss(pool: &SqlitePool, rss: &RssEntity) -> Result<i64, sqlx::Error> {
@@ -36,12 +38,13 @@ WHERE url = ?1
     let rss_type = rss.rss_type.to_string();
     let id = query!(
         r#"
-INSERT INTO main.rss (url, title, rss_type)
-VALUES (?1, ?2, ?3)
+INSERT INTO main.rss (url, title, rss_type, enabled)
+VALUES (?1, ?2, ?3, ?4)
         "#,
         rss.url,
         rss.title,
         rss_type,
+        rss.enabled,
     )
     .execute(&mut *tx)
     .await?
@@ -54,7 +57,7 @@ VALUES (?1, ?2, ?3)
 pub async fn get_rss_list(pool: &SqlitePool) -> Result<Vec<RssEntity>, sqlx::Error> {
     let recs = query!(
         r#"
-SELECT id, url, title, rss_type
+SELECT id, url, title, rss_type, enabled, season
 FROM main.rss
         "#,
     )
@@ -68,6 +71,10 @@ FROM main.rss
             url: rec.url,
             title: rec.title,
             rss_type: RssType::from_str(&rec.rss_type).unwrap(),
+            enabled: rec.enabled == 1,
+            season: rec.season.map(|s| s as u64),
         })
         .collect())
 }
+
+"

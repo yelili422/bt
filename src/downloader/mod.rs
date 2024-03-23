@@ -8,7 +8,6 @@ use async_trait::async_trait;
 use derive_builder::Builder;
 use log::{debug, error};
 use serde::{Deserialize, Serialize};
-use std::env;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use strum_macros::EnumString;
@@ -234,6 +233,7 @@ pub async fn set_task_renamed(torrent_hash: &str) -> anyhow::Result<()> {
 
 #[cfg(not(test))]
 pub fn get_downloader() -> Box<dyn Downloader> {
+    use std::env;
     use std::str::FromStr;
 
     let downloader_type = env::var("DOWNLOADER_TYPE").unwrap_or_default();

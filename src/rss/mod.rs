@@ -3,14 +3,18 @@ pub mod store;
 
 use crate::downloader::TorrentMeta;
 use crate::renamer::{BangumiInfo, BangumiInfoBuilder};
+use crate::rss::store::RssEntity;
+use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumString};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Builder, PartialEq, Eq)]
+#[builder(setter(into))]
 pub struct Rss {
     pub url: String,
     pub title: Option<String>,
     pub rss_type: RssType,
+    pub season: Option<u64>,
 }
 
 #[allow(unused)]
@@ -21,12 +25,13 @@ pub enum RssType {
     Mikan,
 }
 
-impl Rss {
-    pub fn new(url: String, title: Option<String>, rss_type: RssType) -> Self {
+impl From<RssEntity> for Rss {
+    fn from(entity: RssEntity) -> Self {
         Rss {
-            url,
-            title,
-            rss_type,
+            url: entity.url,
+            title: entity.title,
+            rss_type: entity.rss_type,
+            season: entity.season,
         }
     }
 }

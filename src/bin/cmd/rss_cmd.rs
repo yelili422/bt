@@ -50,7 +50,11 @@ enum RssCommands {
 pub async fn execute(subcommand: RssSubcommand) -> anyhow::Result<()> {
     match subcommand.command {
         RssCommands::Feed { url, rss_type } => {
-            let rss = rss::Rss::new(url, None, RssType::from_str(&rss_type)?);
+            let rss = rss::RssBuilder::default()
+                .url(url)
+                .rss_type(RssType::from_str(&rss_type)?)
+                .build()
+                .unwrap();
             let feeds = parsers::parse(&rss).await?;
             println!("{:?}", feeds)
         }
@@ -64,6 +68,7 @@ pub async fn execute(subcommand: RssSubcommand) -> anyhow::Result<()> {
                 .url(url)
                 .rss_type(RssType::from_str(&rss_type)?)
                 .title(title)
+                .enabled(true)
                 .build()?;
             let pool = bt::get_pool().await?;
             match rss::store::add_rss(&pool, &rss).await {

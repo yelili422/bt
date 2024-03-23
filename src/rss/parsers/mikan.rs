@@ -3,6 +3,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::rss::parsers::RssParser;
+use crate::rss::Rss;
 use crate::{downloader, rss};
 
 pub struct MikanParser {}
@@ -120,31 +121,46 @@ fn parser_episode_title(title: &str) -> Option<regex::Captures> {
     return re.captures(title);
 }
 
+/// strip "Mikan Project - " from title if present
+fn strip_mikan_prefix(title: &str) -> &str {
+    title.strip_prefix("Mikan Project - ").unwrap_or(title)
+}
+
 impl RssParser for MikanParser {
-    fn parse_content(&self, content: &str) -> Result<rss::RssSubscription, super::ParsingError> {
+    fn parse_content(
+        &self,
+        rss: &Rss,
+        content: &str,
+    ) -> Result<rss::RssSubscription, super::ParsingError> {
         // Parse the content here and return the result
         // If parsing is successful, create and return an RssSubscription
         // If parsing fails, return a ParsingError
-        let rss: Result<MikanRss, serde_xml_rs::Error> = serde_xml_rs::from_str(content);
-        match rss {
-            Ok(rss) => {
+        let rss_xml: Result<MikanRss, serde_xml_rs::Error> = serde_xml_rs::from_str(content);
+        match rss_xml {
+            Ok(rss_xml) => {
                 let mut rss_items = Vec::new();
 
-                let raw_title = rss.channel.title.as_str();
-                // strip "Mikan Project - " from title if present
-                let raw_title_content = raw_title
-                    .strip_prefix("Mikan Project - ")
-                    .unwrap_or(raw_title)
-                    .to_string();
+                let raw_title_content =
+                    strip_mikan_prefix(rss_xml.channel.title.as_str()).to_string();
                 let (channel_title, channel_season) = parse_bangumi_title(&raw_title_content);
 
-                for item in rss.channel.item {
+                for item in rss_xml.channel.item {
                     match self.parse_rss_item(&item) {
                         Ok(mut rss_item) => {
                             if channel_title != "我的番组" {
-                                // prioritize the title in the rss header
+                                // PRIORITY: rss title > channel title > item title
                                 rss_item.title = channel_title.to_string();
                                 rss_item.season = channel_season;
+
+                                if let Some(rss_title) = &rss.title {
+                                    rss_item.title = rss_title.to_string();
+                                }
+
+                                if let Some(rss_season) = rss.season {
+                                    rss_item.season = rss_season;
+                                }
+                            } else {
+                                // use default item title
                             }
                             rss_items.push(rss_item);
                         }
@@ -155,8 +171,8 @@ impl RssParser for MikanParser {
                 }
 
                 Ok(rss::RssSubscription {
-                    url: rss.channel.link,
-                    description: rss.channel.description,
+                    url: rss_xml.channel.link,
+                    description: rss_xml.channel.description,
                     items: rss_items,
                 })
             }
@@ -216,6 +232,7 @@ struct MikanEnclosure {
 #[cfg(test)]
 #[allow(unused_imports)]
 mod tests {
+    use crate::rss::{Rss, RssBuilder, RssType};
     use crate::{
         downloader::{TorrentMeta, TorrentMetaBuilder},
         rss::{
@@ -224,6 +241,16 @@ mod tests {
         },
     };
     use std::fs::read_to_string;
+
+    fn mock_rss() -> Rss {
+        RssBuilder::default()
+            .url("")
+            .rss_type(RssType::Mikan)
+            .title(None)
+            .season(None)
+            .build()
+            .unwrap()
+    }
 
     #[test]
     fn parse_episode_title() {
@@ -242,7 +269,7 @@ mod tests {
         assert_ne!(&rss_content, "");
 
         let parser = MikanParser::new();
-        let res = parser.parse_content(&rss_content).unwrap();
+        let res = parser.parse_content(&mock_rss(), &rss_content).unwrap();
 
         let expect = RssSubscription {
             url: "http://mikanani.me/RSS/Bangumi?bangumiId=3141&subgroupid=370".to_string(),
@@ -291,7 +318,7 @@ mod tests {
         assert_ne!(&rss_content, "");
 
         let parser = MikanParser::new();
-        let res = parser.parse_content(&rss_content).unwrap();
+        let res = parser.parse_content(&mock_rss(), &rss_content).unwrap();
 
         let expect = RssSubscription {
             url: "http://mikanani.me/RSS/Bangumi?bangumiId=3223&subgroupid=615".to_string(),
@@ -324,7 +351,7 @@ mod tests {
         assert_ne!(&rss_content, "");
 
         let parser = MikanParser::new();
-        let res = parser.parse_content(&rss_content).unwrap();
+        let res = parser.parse_content(&mock_rss(), &rss_content).unwrap();
 
         let expect = vec![
             RssSubscriptionItem {

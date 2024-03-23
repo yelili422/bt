@@ -20,7 +20,11 @@ pub async fn download_rss_feeds(downloader: Arc<Mutex<Box<dyn Downloader>>>) -> 
     let pool = crate::get_pool().await?;
     let rss_list = rss::store::get_rss_list(&pool).await.unwrap_or_default();
     for rss in rss_list {
-        let rss = rss::Rss::new(rss.url, rss.title, rss.rss_type);
+        if !rss.enabled {
+            debug!("[rss] Skip disabled RSS: ({})", rss.url);
+            continue;
+        }
+        let rss = rss::Rss::from(rss);
         match parsers::parse(&rss).await {
             Ok(feeds) => {
                 for feed in &feeds.items {

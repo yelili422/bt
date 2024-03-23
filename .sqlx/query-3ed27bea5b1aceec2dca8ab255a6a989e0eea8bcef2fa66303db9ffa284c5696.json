@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\nSELECT id, url, title, rss_type\nFROM main.rss\n        ",
+  "query": "\nSELECT id, url, title, rss_type, enabled\nFROM main.rss\n        ",
   "describe": {
     "columns": [
       {
@@ -22,6 +22,11 @@
         "name": "rss_type",
         "ordinal": 3,
         "type_info": "Text"
+      },
+      {
+        "name": "enabled",
+        "ordinal": 4,
+        "type_info": "Int64"
       }
     ],
     "parameters": {
@@ -31,8 +36,9 @@
       false,
       false,
       true,
+      false,
       false
     ]
   },
-  "hash": "b044b75565143efc7aca0d7f8245d2157d02d3f84161088da8218218f924b47b"
+  "hash": "3ed27bea5b1aceec2dca8ab255a6a989e0eea8bcef2fa66303db9ffa284c5696"
 }
