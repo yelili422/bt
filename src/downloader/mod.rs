@@ -14,8 +14,8 @@ use strum_macros::EnumString;
 use thiserror::Error;
 use tokio::sync::{Mutex, MutexGuard};
 
-use crate::get_pool;
 use crate::renamer::BangumiInfo;
+use crate::tx_begin;
 pub use bittorrent::*;
 pub use dummy::DummyDownloader;
 pub use qbittorrent::QBittorrentDownloader;
@@ -154,8 +154,7 @@ pub async fn download_with_state(
     torrent_meta.fetch_torrent().await?;
     let info_hash = torrent_meta.get_info_hash().await?;
 
-    let pool = get_pool().await?;
-    let mut tx = pool.begin().await?;
+    let mut tx = tx_begin().await?;
 
     let created = store::add_task(
         &mut tx,
@@ -193,17 +192,16 @@ pub async fn download_with_state(
 }
 
 pub async fn get_bangumi_info(torrent_hash: &str) -> anyhow::Result<Option<BangumiInfo>> {
-    let info = store::get_bangumi_info(&get_pool().await?, torrent_hash).await?;
-
+    let mut tx = tx_begin().await?;
+    let info = store::get_bangumi_info(&mut tx, torrent_hash).await?;
     Ok(info)
 }
 
 pub async fn update_task_status(download_list: &Vec<DownloadingTorrent>) -> anyhow::Result<()> {
-    let pool = get_pool().await?;
-    let mut tx = pool.begin().await?;
+    let mut tx = tx_begin().await?;
 
     for torrent in download_list {
-        match store::get_task(&pool, &torrent.hash).await? {
+        match store::get_task(&mut tx, &torrent.hash).await? {
             Some(task) => {
                 if task.status != torrent.status {
                     store::update_task_status(
@@ -226,8 +224,9 @@ pub async fn update_task_status(download_list: &Vec<DownloadingTorrent>) -> anyh
 }
 
 pub async fn set_task_renamed(torrent_hash: &str) -> anyhow::Result<()> {
-    let pool = get_pool().await?;
-    store::update_task_renamed(&pool, torrent_hash).await?;
+    let mut tx = tx_begin().await?;
+    store::update_task_renamed(&mut tx, torrent_hash).await?;
+    tx.rollback().await?;
     Ok(())
 }
 

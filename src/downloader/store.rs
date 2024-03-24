@@ -71,13 +71,11 @@ RETURNING id
 }
 
 pub async fn get_task(
-    pool: &sqlx::SqlitePool,
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     torrent_hash: &str,
 ) -> Result<Option<DownloadTask>, sqlx::Error> {
-    let mut tx = pool.begin().await?;
-
     let rec = query!(r#"SELECT * FROM main.download_task WHERE torrent_hash = ?1"#, torrent_hash)
-        .fetch_optional(&mut *tx)
+        .fetch_optional(&mut **tx)
         .await?;
 
     match rec {
@@ -97,16 +95,14 @@ pub async fn get_task(
 
 #[allow(unused)]
 pub async fn get_tasks_need_renamed(
-    pool: &sqlx::SqlitePool,
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
 ) -> Result<Vec<DownloadTask>, sqlx::Error> {
-    let mut tx = pool.begin().await?;
-
     let status_completed = TaskStatus::Completed.to_string();
     let recs = query!(
         r#"SELECT * FROM main.download_task WHERE status = ?1 AND renamed = 0"#,
         status_completed
     )
-    .fetch_all(&mut *tx)
+    .fetch_all(&mut **tx)
     .await?;
 
     let tasks = recs
@@ -127,13 +123,11 @@ pub async fn get_tasks_need_renamed(
 }
 
 pub async fn get_bangumi_info(
-    pool: &sqlx::SqlitePool,
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     torrent_hash: &str,
 ) -> Result<Option<BangumiInfo>, sqlx::Error> {
-    let mut tx = pool.begin().await?;
-
     let rec = query!(r#"SELECT * FROM main.download_task WHERE torrent_hash = ?1"#, torrent_hash)
-        .fetch_optional(&mut *tx)
+        .fetch_optional(&mut **tx)
         .await?;
 
     match rec {
@@ -174,19 +168,16 @@ pub async fn update_task_status(
 }
 
 pub async fn update_task_renamed(
-    pool: &sqlx::SqlitePool,
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     torrent_hash: &str,
 ) -> Result<(), sqlx::Error> {
-    let mut tx = pool.begin().await?;
-
     query!(
         r#"UPDATE main.download_task SET renamed = 1 WHERE torrent_hash = ?1"#,
         torrent_hash
     )
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await?;
 
     info!("[store] Marked task [{}] renamed.", torrent_hash);
-    tx.commit().await?;
     Ok(())
 }

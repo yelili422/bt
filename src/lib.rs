@@ -18,7 +18,10 @@ pub mod rss;
 pub async fn download_rss_feeds(downloader: Arc<Mutex<Box<dyn Downloader>>>) -> anyhow::Result<()> {
     info!("[rss] Fetching RSS feeds...");
     let pool = crate::get_pool().await?;
-    let rss_list = rss::store::get_rss_list(&pool).await.unwrap_or_default();
+    let mut tx = pool.begin().await?;
+    let rss_list = rss::store::get_rss_list(&mut tx).await.unwrap_or_default();
+    tx.rollback().await?;
+
     for rss in rss_list {
         if !rss.enabled {
             debug!("[rss] Skip disabled RSS: ({})", rss.url);
@@ -45,7 +48,6 @@ pub async fn download_rss_feeds(downloader: Arc<Mutex<Box<dyn Downloader>>>) -> 
             }
         }
     }
-
     Ok(())
 }
 
@@ -96,4 +98,9 @@ pub async fn get_pool() -> anyhow::Result<SqlitePool> {
     let options = SqliteConnectOptions::from_str(url)?.create_if_missing(true);
 
     Ok(SqlitePool::connect_with(options).await?)
+}
+
+pub async fn tx_begin() -> anyhow::Result<sqlx::Transaction<'static, sqlx::Sqlite>> {
+    let pool = get_pool().await?;
+    Ok(pool.begin().await?)
 }

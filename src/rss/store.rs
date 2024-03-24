@@ -2,7 +2,7 @@ use crate::rss::RssType;
 use derive_builder::Builder;
 use log::info;
 use serde::{Deserialize, Serialize};
-use sqlx::{query, SqlitePool};
+use sqlx::query;
 use std::str::FromStr;
 
 #[derive(Debug, Builder, Serialize, Deserialize)]
@@ -17,8 +17,10 @@ pub struct RssEntity {
     pub season: Option<u64>,
 }
 
-pub async fn add_rss(pool: &SqlitePool, rss: &RssEntity) -> Result<i64, sqlx::Error> {
-    let mut tx = pool.begin().await?;
+pub async fn add_rss(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    rss: &RssEntity,
+) -> Result<i64, sqlx::Error> {
     // check if the rss url already exists
     let rec = query!(
         r#"
@@ -28,7 +30,7 @@ WHERE url = ?1
         "#,
         rss.url,
     )
-    .fetch_optional(&mut *tx)
+    .fetch_optional(&mut **tx)
     .await?;
     if rec.is_some() {
         info!("[store] RSS url {} already exists", &rss.url);
@@ -46,22 +48,40 @@ VALUES (?1, ?2, ?3, ?4)
         rss_type,
         rss.enabled,
     )
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await?
     .last_insert_rowid();
 
-    tx.commit().await?;
     Ok(id)
 }
 
-pub async fn get_rss_list(pool: &SqlitePool) -> Result<Vec<RssEntity>, sqlx::Error> {
+pub async fn delete_rss(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    id: i64,
+) -> Result<(), sqlx::Error> {
+    query!(
+        r#"
+DELETE FROM main.rss
+WHERE id = ?1
+        "#,
+        id,
+    )
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn get_rss_list(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+) -> Result<Vec<RssEntity>, sqlx::Error> {
     let recs = query!(
         r#"
 SELECT id, url, title, rss_type, enabled, season
 FROM main.rss
         "#,
     )
-    .fetch_all(pool)
+    .fetch_all(&mut **tx)
     .await?;
 
     Ok(recs
@@ -76,5 +96,3 @@ FROM main.rss
         })
         .collect())
 }
-
-"

@@ -1,5 +1,5 @@
-use bt::rss;
 use bt::rss::{parsers, RssType};
+use bt::{rss, tx_begin};
 use clap::{Parser, Subcommand};
 use std::str::FromStr;
 
@@ -70,13 +70,14 @@ pub async fn execute(subcommand: RssSubcommand) -> anyhow::Result<()> {
                 .title(title)
                 .enabled(true)
                 .build()?;
-            let pool = bt::get_pool().await?;
-            match rss::store::add_rss(&pool, &rss).await {
+            let mut tx = tx_begin().await?;
+            match rss::store::add_rss(&mut tx, &rss).await {
                 Err(e) => {
                     eprintln!("{:?}", e);
                 }
                 _ => {}
             }
+            tx.commit().await?;
         }
     }
 
