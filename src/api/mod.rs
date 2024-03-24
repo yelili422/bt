@@ -4,7 +4,6 @@ use actix_web::http::StatusCode;
 use actix_web::middleware::Logger;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder, ResponseError};
 use log::info;
-use std::env;
 
 pub use rss_api::*;
 
