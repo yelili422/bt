@@ -15,7 +15,8 @@ pub async fn run() -> std::io::Result<()> {
         let rss_scope = web::scope("/rss")
             .service(get_rss)
             .service(add_rss)
-            .service(delete_rss);
+            .service(delete_rss)
+            .service(update_rss);
 
         App::new()
             .wrap(Logger::default())

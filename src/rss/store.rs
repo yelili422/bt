@@ -38,15 +38,17 @@ WHERE url = ?1
     }
 
     let rss_type = rss.rss_type.to_string();
+    let season = rss.season.map(|s| s as i64);
     let id = query!(
         r#"
-INSERT INTO main.rss (url, title, rss_type, enabled)
-VALUES (?1, ?2, ?3, ?4)
+INSERT INTO main.rss (url, title, rss_type, enabled, season)
+VALUES (?1, ?2, ?3, ?4, ?5)
         "#,
         rss.url,
         rss.title,
         rss_type,
         rss.enabled,
+        season,
     )
     .execute(&mut **tx)
     .await?
@@ -95,4 +97,30 @@ FROM main.rss
             season: rec.season.map(|s| s as u64),
         })
         .collect())
+}
+
+pub async fn update_rss(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    id: i64,
+    rss: &RssEntity,
+) -> Result<(), sqlx::Error> {
+    let rss_type = rss.rss_type.to_string();
+    let season = rss.season.map(|s| s as i64);
+    query!(
+        r#"
+UPDATE main.rss
+SET url = ?1, title = ?2, rss_type = ?3, enabled = ?4, season = ?5
+WHERE id = ?6
+        "#,
+        rss.url,
+        rss.title,
+        rss_type,
+        rss.enabled,
+        season,
+        id,
+    )
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
 }

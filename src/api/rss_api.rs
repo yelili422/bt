@@ -1,4 +1,4 @@
-use actix_web::{delete, get, post, Responder, web};
+use actix_web::{delete, get, post, put, Responder, web};
 use crate::{rss, tx_begin};
 use crate::rss::store::RssEntity;
 
@@ -22,6 +22,14 @@ async fn add_rss(info: web::Json<RssEntity>) -> crate::api::Result<impl Responde
 async fn delete_rss(path: web::Path<i64>) -> crate::api::Result<impl Responder> {
     let mut tx = tx_begin().await?;
     rss::store::delete_rss(&mut tx, path.into_inner()).await?;
+    tx.commit().await?;
+    Ok(web::Json("ok"))
+}
+
+#[put("/{id}")]
+async fn update_rss(path: web::Path<i64>, info: web::Json<RssEntity>) -> crate::api::Result<impl Responder> {
+    let mut tx = tx_begin().await?;
+    rss::store::update_rss(&mut tx, path.into_inner(), &info.into_inner()).await?;
     tx.commit().await?;
     Ok(web::Json("ok"))
 }
