@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+/usr/bin/nginx -g "daemon off;";
+
 echo "BT Daemon is starting...";
 echo "Downloading path mapping: $DOWNLOADING_PATH_MAPPING";
 echo "Archived path: $ARCHIVED_PATH";

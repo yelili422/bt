@@ -9,8 +9,7 @@ use std::env;
 pub use rss_api::*;
 
 pub async fn run() -> std::io::Result<()> {
-    let web_api_port = env::var("WEB_API_PORT").unwrap_or(String::from("8081"));
-    info!("[api] Starting web server on port: {}", web_api_port);
+    info!("[api] Starting web server...");
     HttpServer::new(|| {
         let rss_scope = web::scope("/rss")
             .service(get_rss)
@@ -23,7 +22,7 @@ pub async fn run() -> std::io::Result<()> {
             .service(ping)
             .service(rss_scope)
     })
-    .bind(format!("localhost:{}", web_api_port))?
+    .bind(("127.0.0.1", 8081))?
     .run()
     .await
 }
