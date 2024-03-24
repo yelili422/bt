@@ -10,10 +10,10 @@ CREATE TABLE rss
     season   INTEGER
 );
 
-INSERT INTO rss (url, title, rss_type, enabled)
-VALUES ('https://mikanani.me/RSS/Bangumi?bangumiId=3141&subgroupid=615', 'My Bangumi', 'mikan', 1),
-       ('https://mikanani.me/RSS/Bangumi?bangumiId=3231&subgroupid=583', '魔都精兵的奴隶', 'mikan', 1),
-       ('https://mikanani.me/RSS/Bangumi?bangumiId=3240&subgroupid=370', '迷宫饭', 'mikan', 1);
+-- INSERT INTO rss (url, title, rss_type, enabled)
+-- VALUES ('https://mikanani.me/RSS/Bangumi?bangumiId=3141&subgroupid=615', 'My Bangumi', 'mikan', 1),
+--        ('https://mikanani.me/RSS/Bangumi?bangumiId=3231&subgroupid=583', '魔都精兵的奴隶', 'mikan', 1),
+--        ('https://mikanani.me/RSS/Bangumi?bangumiId=3240&subgroupid=370', '迷宫饭', 'mikan', 1);
 
 DROP TABLE IF EXISTS download_task;
 

@@ -61,9 +61,10 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /bt/target/release/cmd /usr/bin/bt
+COPY --from=builder /bt/target/release/cmd /usr/bin/cmd
+COPY --from=builder /bt/target/release/web_api /usr/bin/web_api
 COPY --from=builder /bt/migrations/ /bt/migrations/
-COPY --from=builder /bt/ui/dist /usr/share/nginx/html
+COPY --from=builder /bt/ui/dist /var/www/html
 COPY entrypoint.sh /entrypoint.sh
 
 EXPOSE 80/tcp
