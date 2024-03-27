@@ -1,9 +1,9 @@
+use clap::{Parser, Subcommand};
+
+use bt::{get_pool, init};
+
 mod daemon_cmd;
 mod rss_cmd;
-
-use bt::get_pool;
-use clap::{Parser, Subcommand};
-use dotenvy::dotenv;
 
 // The Bangumi Tools CLI
 #[derive(Parser, Debug)]
@@ -21,14 +21,7 @@ enum Commands {
 
 #[tokio::main]
 async fn main() {
-    _ = dotenv();
-    env_logger::init();
-
-    let pool = get_pool().await.expect("Failed to create database pool");
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("Failed to run database migrations");
+    init().await;
 
     let args = Cli::parse();
     match args.command {

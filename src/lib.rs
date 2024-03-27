@@ -3,21 +3,40 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
+use dotenvy::dotenv;
 
 use crate::downloader::Downloader;
 use crate::rss::parsers;
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::SqlitePool;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OnceCell};
 
 pub mod api;
 pub mod downloader;
 pub mod renamer;
 pub mod rss;
 
+pub async fn init() {
+    // Load environment variables from .env file.
+    // If not found, ignore it
+    _ = dotenv();
+
+    // Init logger
+    env_logger::init();
+
+    // Initialize the database pool
+    init_db().await.expect("Failed to initialize database");
+
+    let pool = get_pool().await.expect("Failed to acquire database pool");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("Failed to run database migrations");
+}
+
 pub async fn download_rss_feeds(downloader: Arc<Mutex<Box<dyn Downloader>>>) -> anyhow::Result<()> {
     info!("[rss] Fetching RSS feeds...");
-    let pool = crate::get_pool().await?;
+    let pool = get_pool().await?;
     let mut tx = pool.begin().await?;
     let rss_list = rss::store::get_rss_list(&mut tx).await.unwrap_or_default();
     tx.rollback().await?;
@@ -91,13 +110,23 @@ pub async fn check_downloading_tasks(
     Ok(())
 }
 
-pub async fn get_pool() -> anyhow::Result<SqlitePool> {
-    // TODO: reuse the pool if it already exists
+static SQL_POOL: OnceCell<SqlitePool> = OnceCell::const_new();
 
+async fn init_db() -> anyhow::Result<()> {
     let url = &env::var("DATABASE_URL")?;
     let options = SqliteConnectOptions::from_str(url)?.create_if_missing(true);
 
-    Ok(SqlitePool::connect_with(options).await?)
+    let pool = SqlitePool::connect_with(options).await?;
+    SQL_POOL.set(pool).unwrap();
+
+    Ok(())
+}
+
+pub async fn get_pool() -> anyhow::Result<SqlitePool> {
+    match SQL_POOL.get() {
+        Some(pool) => Ok(pool.clone()),
+        None => panic!("Database pool is not initialized"),
+    }
 }
 
 pub async fn tx_begin() -> anyhow::Result<sqlx::Transaction<'static, sqlx::Sqlite>> {

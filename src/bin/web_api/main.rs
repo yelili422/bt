@@ -1,9 +1,7 @@
-use bt::api;
-use dotenvy::dotenv;
+use bt::{api, init};
 
 #[tokio::main]
 async fn main() {
-    _ = dotenv();
-    env_logger::init();
+    init().await;
     api::run().await.unwrap();
 }
