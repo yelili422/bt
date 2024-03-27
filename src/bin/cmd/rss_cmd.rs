@@ -44,6 +44,10 @@ enum RssCommands {
         ///
         #[arg(long)]
         title: Option<String>,
+
+        /// Season of the rss feed, default to 1
+        #[arg(long, short, default_value = "1")]
+        season: Option<u64>,
     },
 }
 
@@ -62,6 +66,7 @@ pub async fn execute(subcommand: RssSubcommand) -> anyhow::Result<()> {
             url,
             rss_type,
             title,
+            season,
         } => {
             let rss = rss::store::RssEntityBuilder::default()
                 .id(None)
@@ -69,6 +74,7 @@ pub async fn execute(subcommand: RssSubcommand) -> anyhow::Result<()> {
                 .rss_type(RssType::from_str(&rss_type)?)
                 .title(title)
                 .enabled(true)
+                .season(season)
                 .build()?;
             let mut tx = tx_begin().await?;
             match rss::store::add_rss(&mut tx, &rss).await {
