@@ -426,6 +426,7 @@ dependencies = [
 name = "bt"
 version = "0.1.0"
 dependencies = [
+ "actix-http",
  "actix-web",
  "anyhow",
  "async-trait",

@@ -1,29 +1,41 @@
 mod rss_api;
 
+use actix_http::body::MessageBody;
+use actix_web::dev::{ServiceFactory, ServiceRequest, ServiceResponse};
 use actix_web::http::StatusCode;
 use actix_web::middleware::Logger;
-use actix_web::{get, web, App, HttpResponse, HttpServer, Responder, ResponseError};
+use actix_web::{get, web, App, Error, HttpResponse, HttpServer, Responder, ResponseError};
 use log::info;
 
 pub use rss_api::*;
 
 pub async fn run() -> std::io::Result<()> {
     info!("[api] Starting web server...");
-    HttpServer::new(|| {
-        let rss_scope = web::scope("/rss")
-            .service(get_rss)
-            .service(add_rss)
-            .service(delete_rss)
-            .service(update_rss);
+    HttpServer::new(|| setup_app())
+        .bind(("127.0.0.1", 8081))?
+        .run()
+        .await
+}
 
-        App::new()
-            .wrap(Logger::default())
-            .service(ping)
-            .service(rss_scope)
-    })
-    .bind(("127.0.0.1", 8081))?
-    .run()
-    .await
+pub(crate) fn setup_app() -> App<
+    impl ServiceFactory<
+        ServiceRequest,
+        Config = (),
+        Response = ServiceResponse<impl MessageBody>,
+        Error = Error,
+        InitError = (),
+    >,
+> {
+    let rss_scope = web::scope("/rss")
+        .service(get_rss)
+        .service(add_rss)
+        .service(delete_rss)
+        .service(update_rss);
+
+    App::new()
+        .wrap(Logger::default())
+        .service(ping)
+        .service(rss_scope)
 }
 
 #[derive(Debug, thiserror::Error)]

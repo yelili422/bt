@@ -3,10 +3,10 @@ DROP TABLE IF EXISTS rss;
 CREATE TABLE rss
 (
     id       INTEGER PRIMARY KEY AUTOINCREMENT,
-    url      TEXT              NOT NULL,
+    url      TEXT NOT NULL,
     title    TEXT,
-    rss_type TEXT              NOT NULL,
-    enabled  INTEGER DEFAULT 1 NOT NULL,
+    rss_type TEXT NOT NULL,
+    enabled  INTEGER,
     season   INTEGER
 );
 

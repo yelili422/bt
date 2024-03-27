@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 
-use bt::{get_pool, init};
+use bt::init;
 
 mod daemon_cmd;
 mod rss_cmd;

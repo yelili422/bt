@@ -1,7 +1,9 @@
-use bt::rss::{parsers, RssType};
-use bt::{rss, tx_begin};
-use clap::{Parser, Subcommand};
 use std::str::FromStr;
+
+use clap::{Parser, Subcommand};
+
+use bt::rss;
+use bt::rss::{parsers, RssType};
 
 /// The RSS command to fetch and manage RSS feeds
 #[derive(Parser, Debug)]
@@ -68,7 +70,7 @@ pub async fn execute(subcommand: RssSubcommand) -> anyhow::Result<()> {
             title,
             season,
         } => {
-            let rss = rss::store::RssEntityBuilder::default()
+            let rss = rss::RssBuilder::default()
                 .id(None)
                 .url(url)
                 .rss_type(RssType::from_str(&rss_type)?)
@@ -76,14 +78,12 @@ pub async fn execute(subcommand: RssSubcommand) -> anyhow::Result<()> {
                 .enabled(true)
                 .season(season)
                 .build()?;
-            let mut tx = tx_begin().await?;
-            match rss::store::add_rss(&mut tx, &rss).await {
+            match rss::add_rss(&rss).await {
                 Err(e) => {
                     eprintln!("{:?}", e);
                 }
                 _ => {}
             }
-            tx.commit().await?;
         }
     }
 

@@ -242,12 +242,14 @@ mod tests {
     };
     use std::fs::read_to_string;
 
-    fn mock_rss() -> Rss {
+    fn empty_rss() -> Rss {
         RssBuilder::default()
+            .id(None)
             .url("")
             .rss_type(RssType::Mikan)
             .title(None)
             .season(None)
+            .enabled(None)
             .build()
             .unwrap()
     }
@@ -269,7 +271,7 @@ mod tests {
         assert_ne!(&rss_content, "");
 
         let parser = MikanParser::new();
-        let res = parser.parse_content(&mock_rss(), &rss_content).unwrap();
+        let res = parser.parse_content(&empty_rss(), &rss_content).unwrap();
 
         let expect = RssSubscription {
             url: "http://mikanani.me/RSS/Bangumi?bangumiId=3141&subgroupid=370".to_string(),
@@ -318,7 +320,7 @@ mod tests {
         assert_ne!(&rss_content, "");
 
         let parser = MikanParser::new();
-        let res = parser.parse_content(&mock_rss(), &rss_content).unwrap();
+        let res = parser.parse_content(&empty_rss(), &rss_content).unwrap();
 
         let expect = RssSubscription {
             url: "http://mikanani.me/RSS/Bangumi?bangumiId=3223&subgroupid=615".to_string(),
@@ -351,7 +353,7 @@ mod tests {
         assert_ne!(&rss_content, "");
 
         let parser = MikanParser::new();
-        let res = parser.parse_content(&mock_rss(), &rss_content).unwrap();
+        let res = parser.parse_content(&empty_rss(), &rss_content).unwrap();
 
         let expect = vec![
             RssSubscriptionItem {

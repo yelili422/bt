@@ -1,9 +1,8 @@
+use dotenvy::dotenv;
 use log::{debug, error, info};
-use std::env;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
-use dotenvy::dotenv;
 
 use crate::downloader::Downloader;
 use crate::rss::parsers;
@@ -16,6 +15,9 @@ pub mod downloader;
 pub mod renamer;
 pub mod rss;
 
+#[cfg(test)]
+mod test;
+
 pub async fn init() {
     // Load environment variables from .env file.
     // If not found, ignore it
@@ -23,9 +25,6 @@ pub async fn init() {
 
     // Init logger
     env_logger::init();
-
-    // Initialize the database pool
-    init_db().await.expect("Failed to initialize database");
 
     let pool = get_pool().await.expect("Failed to acquire database pool");
     sqlx::migrate!("./migrations")
@@ -36,17 +35,13 @@ pub async fn init() {
 
 pub async fn download_rss_feeds(downloader: Arc<Mutex<Box<dyn Downloader>>>) -> anyhow::Result<()> {
     info!("[rss] Fetching RSS feeds...");
-    let pool = get_pool().await?;
-    let mut tx = pool.begin().await?;
-    let rss_list = rss::store::get_rss_list(&mut tx).await.unwrap_or_default();
-    tx.rollback().await?;
+    let rss_list = rss::list_rss().await.unwrap_or_default();
 
     for rss in rss_list {
-        if !rss.enabled {
+        if rss.enabled == None || rss.enabled == Some(false) {
             debug!("[rss] Skip disabled RSS: ({})", rss.url);
             continue;
         }
-        let rss = rss::Rss::from(rss);
         match parsers::parse(&rss).await {
             Ok(feeds) => {
                 for feed in &feeds.items {
@@ -112,21 +107,22 @@ pub async fn check_downloading_tasks(
 
 static SQL_POOL: OnceCell<SqlitePool> = OnceCell::const_new();
 
-async fn init_db() -> anyhow::Result<()> {
-    let url = &env::var("DATABASE_URL")?;
-    let options = SqliteConnectOptions::from_str(url)?.create_if_missing(true);
+async fn init_db() -> anyhow::Result<SqlitePool> {
+    #[cfg(not(test))]
+    let url = std::env::var("DATABASE_URL")?;
+    #[cfg(test)]
+    let url = "sqlite::memory:".to_string();
 
+    let options = SqliteConnectOptions::from_str(&url)?.create_if_missing(true);
     let pool = SqlitePool::connect_with(options).await?;
-    SQL_POOL.set(pool).unwrap();
-
-    Ok(())
+    Ok(pool)
 }
 
 pub async fn get_pool() -> anyhow::Result<SqlitePool> {
-    match SQL_POOL.get() {
-        Some(pool) => Ok(pool.clone()),
-        None => panic!("Database pool is not initialized"),
-    }
+    let pool = SQL_POOL
+        .get_or_init(|| async { init_db().await.expect("Failed to initialize database") })
+        .await;
+    Ok(pool.clone())
 }
 
 pub async fn tx_begin() -> anyhow::Result<sqlx::Transaction<'static, sqlx::Sqlite>> {
