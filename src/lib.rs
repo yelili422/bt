@@ -84,6 +84,15 @@ pub async fn check_downloading_tasks(
     let dst_folder = Path::new(&archived_path);
     for task in download_list {
         if task.status == downloader::TaskStatus::Completed {
+            // ignore all tasks renamed and not found
+            if downloader::is_renamed(&task.hash).await.unwrap_or(true) {
+                debug!(
+                    "[renamer] Skip renaming task [{}] already renamed and not found",
+                    task.hash
+                );
+                continue;
+            }
+
             let mut file_path = PathBuf::from(task.save_path).join(task.name);
 
             if let Some(path_map) = download_path_mapping.as_ref() {

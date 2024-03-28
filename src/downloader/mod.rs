@@ -230,6 +230,13 @@ pub async fn set_task_renamed(torrent_hash: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+pub async fn is_renamed(torrent_hash: &str) -> anyhow::Result<bool> {
+    let mut tx = tx_begin().await?;
+    let renamed = store::is_renamed(&mut tx, torrent_hash).await?;
+    tx.rollback().await?;
+    Ok(renamed)
+}
+
 #[cfg(not(test))]
 pub fn get_downloader() -> Box<dyn Downloader> {
     use std::env;

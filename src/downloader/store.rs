@@ -181,3 +181,17 @@ pub async fn update_task_renamed(
     info!("[store] Marked task [{}] renamed.", torrent_hash);
     Ok(())
 }
+
+pub async fn is_renamed(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    torrent_hash: &str,
+) -> Result<bool, sqlx::Error> {
+    let rec = query!(
+        r#"SELECT renamed FROM main.download_task WHERE torrent_hash = ?1"#,
+        torrent_hash
+    )
+    .fetch_one(&mut **tx)
+    .await?;
+
+    Ok(rec.renamed == 1)
+}
