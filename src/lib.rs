@@ -18,19 +18,26 @@ pub mod rss;
 #[cfg(test)]
 mod test;
 
+#[allow(unused)]
+static INIT: OnceCell<()> = OnceCell::const_new();
+
 pub async fn init() {
-    // Load environment variables from .env file.
-    // If not found, ignore it
-    _ = dotenv();
+    // We should initialize something only once, but `init` can be called multiple times in tests.
+    INIT.get_or_init(|| async {
+        // Load environment variables from .env file.
+        // If not found, ignore it
+        _ = dotenv();
 
-    // Init logger
-    env_logger::init();
+        // Init logger
+        env_logger::init();
 
-    let pool = get_pool().await.expect("Failed to acquire database pool");
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("Failed to run database migrations");
+        let pool = get_pool().await.expect("Failed to acquire database pool");
+        sqlx::migrate!("./migrations")
+            .run(&pool)
+            .await
+            .expect("Failed to run database migrations");
+    })
+    .await;
 }
 
 pub async fn download_rss_feeds(downloader: Arc<Mutex<Box<dyn Downloader>>>) -> anyhow::Result<()> {
