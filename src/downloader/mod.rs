@@ -226,7 +226,7 @@ pub async fn update_task_status(download_list: &Vec<DownloadingTorrent>) -> anyh
 pub async fn set_task_renamed(torrent_hash: &str) -> anyhow::Result<()> {
     let mut tx = tx_begin().await?;
     store::update_task_renamed(&mut tx, torrent_hash).await?;
-    tx.rollback().await?;
+    tx.commit().await?;
     Ok(())
 }
 
@@ -257,4 +257,40 @@ pub fn get_downloader() -> Box<dyn Downloader> {
 #[cfg(test)]
 pub fn get_downloader() -> Box<dyn Downloader> {
     Box::new(DummyDownloader::new())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::init;
+    use crate::renamer::BangumiInfoBuilder;
+
+    #[tokio::test]
+    async fn test_set_renamed() {
+        init().await;
+
+        let downloader = Arc::new(Mutex::new(get_downloader()));
+        let torrent = dummy::get_dummy_torrent();
+        download_with_state(
+            downloader.clone(),
+            &torrent,
+            &BangumiInfoBuilder::default()
+                .show_name("dummy".to_string())
+                .episode_name("".to_string())
+                .display_name("".to_string())
+                .season(1u64)
+                .episode(1u64)
+                .category(None)
+                .build()
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+        let torrent_hash = torrent.get_info_hash().await.unwrap();
+        assert_eq!(is_renamed(&torrent_hash).await.unwrap(), false);
+
+        set_task_renamed(&torrent_hash).await.unwrap();
+        assert_eq!(is_renamed(&torrent_hash).await.unwrap(), true);
+    }
 }

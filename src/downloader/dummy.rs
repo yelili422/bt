@@ -51,28 +51,27 @@ impl Downloader for DummyDownloader {
 }
 
 #[cfg(test)]
+pub(crate) fn get_dummy_torrent() -> TorrentMeta {
+    use crate::downloader::Torrent;
+
+    let dot_torrent =
+        std::fs::read("tests/dataset/872ab5abd72ea223d2a2e36688cc96f83bb71d42.torrent").unwrap();
+    let torrent: Torrent = serde_bencode::from_bytes(&dot_torrent).unwrap();
+
+    TorrentMeta {
+        url: "https://example.com".to_string(),
+        data: Arc::new(Mutex::new(Some(torrent))),
+        content_len: None,
+        pub_date: None,
+        save_path: None,
+        category: Some("test_category".to_string()),
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
-    use crate::downloader::{Torrent, TorrentMeta};
-    use std::sync::Arc;
-    use tokio::sync::Mutex;
     use tokio::test;
-
-    fn get_dummy_torrent() -> TorrentMeta {
-        let dot_torrent =
-            std::fs::read("tests/dataset/872ab5abd72ea223d2a2e36688cc96f83bb71d42.torrent")
-                .unwrap();
-        let torrent: Torrent = serde_bencode::from_bytes(&dot_torrent).unwrap();
-
-        TorrentMeta {
-            url: "https://example.com".to_string(),
-            data: Arc::new(Mutex::new(Some(torrent))),
-            content_len: None,
-            pub_date: None,
-            save_path: None,
-            category: Some("test_category".to_string()),
-        }
-    }
 
     #[test]
     async fn test_downloader_works() {
