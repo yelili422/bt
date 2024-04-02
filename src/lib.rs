@@ -1,5 +1,5 @@
 use dotenvy::dotenv;
-use log::{debug, error, info};
+use log::{debug, error};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -41,7 +41,7 @@ pub async fn init() {
 }
 
 pub async fn download_rss_feeds(downloader: Arc<Mutex<Box<dyn Downloader>>>) -> anyhow::Result<()> {
-    info!("[rss] Fetching RSS feeds...");
+    debug!("[rss] Fetching RSS feeds...");
     let rss_list = rss::list_rss().await.unwrap_or_default();
 
     for rss in rss_list {
@@ -79,7 +79,7 @@ pub async fn check_downloading_tasks(
     notifier: Option<Arc<Mutex<Box<dyn notification::Notifier>>>>,
 ) -> anyhow::Result<()> {
     // update task status
-    info!("[downloader] Updating task status...");
+    debug!("[downloader] Updating task status...");
     let downloader_lock = downloader.lock().await;
     let download_list = downloader_lock
         .get_download_list()
@@ -88,7 +88,7 @@ pub async fn check_downloading_tasks(
     downloader::update_task_status(&download_list).await?;
 
     // if task is done, rename the file and update the database
-    info!("[rename] Renaming completed tasks...");
+    debug!("[rename] Renaming completed tasks...");
     let dst_folder = Path::new(&archived_path);
     for task in download_list {
         if task.status == downloader::TaskStatus::Completed {
@@ -114,7 +114,7 @@ pub async fn check_downloading_tasks(
                     if let Some(notifier) = notifier.as_ref() {
                         let msg = notification::Notification::DownloadFinished(info).to_string();
                         let notifier_lock = notifier.lock().await;
-                        info!("[notification] Sending notification: {}", msg);
+                        debug!("[notification] Sending notification: {}", msg);
                         notifier_lock.send(&msg).await;
                     }
                 }

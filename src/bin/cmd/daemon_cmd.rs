@@ -1,7 +1,7 @@
 use bt::downloader::get_downloader;
 use bt::{check_downloading_tasks, download_rss_feeds, notification};
 use clap::{Parser, Subcommand};
-use log::{error, info};
+use log::{debug, error};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -49,7 +49,7 @@ pub async fn execute(subcommand: DaemonSubcommand) -> anyhow::Result<()> {
                         .unwrap_or_else(|e| {
                             error!("[cmd] Failed to fetch RSS feeds: {:?}", e);
                         });
-                    info!("[cmd] Waiting {} seconds for the next update...", interval);
+                    debug!("[cmd] Waiting {} seconds for the next update...", interval);
                     tokio::time::sleep(tokio::time::Duration::from_secs(interval)).await;
                 }
             });
