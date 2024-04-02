@@ -33,7 +33,6 @@ pub enum RssType {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RssSubscription {
     pub url: String,
-    pub description: String,
     pub items: Vec<RssSubscriptionItem>,
 }
 
@@ -42,7 +41,6 @@ pub struct RssSubscriptionItem {
     pub url: String,
     pub title: String,
     pub episode_title: String,
-    pub description: String,
     pub season: u64,
     pub episode: u64,
     pub fansub: String,

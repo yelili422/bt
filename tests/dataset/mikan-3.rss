@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0">
+	<channel>
+		<title>Mikan Project - 哆啦A梦</title>
+		<link>http://mikanani.me/RSS/Bangumi?bangumiId=681&amp;subgroupid=15</link>
+		<description>Mikan Project - 哆啦A梦</description>
+		<item>
+			<guid isPermaLink="false">【清蓝字幕组】新哆啦A梦 2016生日特别篇 - 天才大雄的飞船游乐园 New Doraemon Birthday Special 2016 [455][GB][720P][MP4]</guid>
+			<link>https://mikanani.me/Home/Episode/59b38a8052a5edb1be4f4c7aa95c7e28d9354f76</link>
+			<title>【清蓝字幕组】新哆啦A梦 2016生日特别篇 - 天才大雄的飞船游乐园 New Doraemon Birthday Special 2016 [455][GB][720P][MP4]</title>
+			<description>【清蓝字幕组】新哆啦A梦 2016生日特别篇 - 天才大雄的飞船游乐园 New Doraemon Birthday Special 2016 [455][GB][720P][MP4][763.7MB]</description>
+			<torrent
+				xmlns="https://mikanani.me/0.1/">
+				<link>https://mikanani.me/Home/Episode/59b38a8052a5edb1be4f4c7aa95c7e28d9354f76</link>
+				<contentLength>800797504</contentLength>
+				<pubDate>2016-09-03T01:07:00</pubDate>
+			</torrent>
+			<enclosure type="application/x-bittorrent" length="800797504" url="https://mikanani.me/Download/20160903/59b38a8052a5edb1be4f4c7aa95c7e28d9354f76.torrent" />
+		</item>
+	</channel>
+</rss>

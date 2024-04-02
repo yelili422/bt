@@ -1,5 +1,4 @@
 use log::error;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::rss::parsers::RssParser;
@@ -26,7 +25,8 @@ impl MikanParser {
         // e.g. [喵萌奶茶屋&amp;LoliHouse] 葬送的芙莉莲 / Sousou no Frieren - 17 [WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]
         let rss_title = item.title.clone();
 
-        match parser_episode_title(&rss_title) {
+        // Parsing each item using standard(maybe) format, the result is always correct.
+        match parse_episode_title(&rss_title) {
             Some(captures) => {
                 // [喵萌奶茶屋&amp;LoliHouse]
                 if let Some(fansub_part) = captures.name("fansub") {
@@ -38,7 +38,7 @@ impl MikanParser {
                     (title, season) = (_title.to_string(), _season);
 
                     let bangumi_names: Vec<_> = title.split('/').collect();
-                    let re = Regex::new(r"\[(.*?)\]").unwrap();
+                    let re = regex::Regex::new(r"\[(.*?)\]").unwrap();
                     title = re.replace_all(bangumi_names[0], "").to_string();
                     title = title.trim().to_string();
                 }
@@ -52,7 +52,13 @@ impl MikanParser {
                 }
             }
             None => {
-                return Err(super::ParsingError::UnrecognizedEpisode(rss_title.to_string()));
+                // If it is fail, fallback to parse episode number only and drop other info
+                // because we can get them later from database alternatively.
+                if let Ok(ep) = parse_episode_num(&rss_title) {
+                    episode = ep;
+                } else {
+                    return Err(super::ParsingError::UnrecognizedEpisode(rss_title.to_string()));
+                }
             }
         }
 
@@ -67,7 +73,6 @@ impl MikanParser {
             url: item.link.clone(),
             title,
             episode_title: "".to_string(),
-            description: item.description.clone(),
             season,
             episode,
             fansub,
@@ -115,10 +120,22 @@ fn parse_bangumi_title(title: &str) -> (&str, u64) {
     }
 }
 
-fn parser_episode_title(title: &str) -> Option<regex::Captures> {
+fn parse_episode_title(title: &str) -> Option<regex::Captures> {
     let pattern = EPISODE_TITLE_PATTERN.replace("\n", "");
     let re = regex::Regex::new(&pattern).unwrap();
     return re.captures(title);
+}
+
+fn parse_episode_num(title: &str) -> Result<u64, super::ParsingError> {
+    let slices: Vec<&str> = title.split(&['[', ']', '-'][..]).collect();
+
+    for s in slices {
+        if let Ok(episode) = s.parse::<u64>() {
+            return Ok(episode);
+        }
+    }
+
+    Err(super::ParsingError::UnrecognizedEpisode(title.to_string()))
 }
 
 /// strip "Mikan Project - " from title if present
@@ -143,6 +160,12 @@ impl RssParser for MikanParser {
                 let raw_title_content =
                     strip_mikan_prefix(rss_xml.channel.title.as_str()).to_string();
                 let (channel_title, channel_season) = parse_bangumi_title(&raw_title_content);
+
+                if channel_title == "我的番组" {
+                    return Err(super::ParsingError::InvalidRss(
+                        "Mikan aggregation rss is not supported yet".to_string(),
+                    ));
+                }
 
                 for item in rss_xml.channel.item {
                     match self.parse_rss_item(&item) {
@@ -172,7 +195,6 @@ impl RssParser for MikanParser {
 
                 Ok(rss::RssSubscription {
                     url: rss_xml.channel.link,
-                    description: rss_xml.channel.description,
                     items: rss_items,
                 })
             }
@@ -232,6 +254,7 @@ struct MikanEnclosure {
 #[cfg(test)]
 #[allow(unused_imports)]
 mod tests {
+    use super::*;
     use crate::rss::{Rss, RssBuilder, RssType};
     use crate::{
         downloader::{TorrentMeta, TorrentMetaBuilder},
@@ -255,18 +278,67 @@ mod tests {
     }
 
     #[test]
-    fn parse_episode_title() {
+    fn test_parse_episode_title() {
         for title in vec![
             "[喵萌奶茶屋&amp;LoliHouse] 葬送的芙莉莲 / Sousou no Frieren - 17 [WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]",
             "[GJ.Y] 欢迎来到实力至上主义的教室 第三季 / Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e 3rd Season - 03 (Baha 1920x1080 AVC AAC MP4)",
             "[LoliHouse] 指尖相触，恋恋不舍 / ゆびさきと恋々 / Yubisaki to Renren - 02 [WebRip 1080p HEVC-10bit AAC][简繁内封字幕]",
         ] {
-            assert!(super::parser_episode_title(title).is_some());
+            assert!(parse_episode_title(title).is_some());
         }
     }
 
     #[test]
-    fn parse_rss_content_normal() {
+    fn test_parse_episode_num() {
+        let titles = vec![
+            "【喵萌奶茶屋】★04月新番★[单间，光照尚好，附带天使。/ワンルーム、日当たり普通、天使つき。/One Room, Hiatari Futsuu, Tenshi-tsuki][01][1080p][简日双语][招募翻译时轴]",
+            "[钉铛字幕组]哆啦A梦新番|Doraemon[521][2018.05.18][1080P][附最新的动画组的特效]",
+            "【清蓝字幕组】新哆啦A梦 - New Doraemon [437][GB][720P]"
+        ];
+        let result: Vec<u64> = vec![1, 521, 437];
+
+        for (&title, &expect) in titles.iter().zip(result.iter()) {
+            assert_eq!(parse_episode_num(title).unwrap(), expect);
+        }
+    }
+
+    #[test]
+    fn test_parse_fallback_single_rss() {
+        let rss_content = read_to_string("./tests/dataset/mikan-3.rss").unwrap();
+        assert_ne!(&rss_content, "");
+
+        let parser = MikanParser::new();
+        let res = parser.parse_content(&empty_rss(), &rss_content).unwrap();
+        let expect = RssSubscription {
+            url: "http://mikanani.me/RSS/Bangumi?bangumiId=681&subgroupid=15".to_string(),
+            items: vec![
+                RssSubscriptionItem {
+                    url: "https://mikanani.me/Home/Episode/59b38a8052a5edb1be4f4c7aa95c7e28d9354f76".to_string(),
+                    title: "哆啦A梦".to_string(),
+                    episode_title: "".to_string(),
+                    season: 1,
+                    episode: 455,
+                    fansub: "".to_string(),
+                    media_info: "".to_string(),
+                    torrent: TorrentMetaBuilder::default()
+                        .url("https://mikanani.me/Download/20160903/59b38a8052a5edb1be4f4c7aa95c7e28d9354f76.torrent")
+                        .content_len(800797504u64)
+                        .pub_date("2016-09-03T01:07:00")
+                        .build()
+                        .unwrap(),
+                },
+            ],
+        };
+        assert_eq!(res, expect);
+    }
+
+    #[test]
+    fn test_parse_fallback_aggregation_rss() {
+        // TODO: not supported yet
+    }
+
+    #[test]
+    fn test_parse_rss_content_normal() {
         let rss_content = read_to_string("./tests/dataset/mikan-1.rss").unwrap();
         assert_ne!(&rss_content, "");
 
@@ -275,13 +347,11 @@ mod tests {
 
         let expect = RssSubscription {
             url: "http://mikanani.me/RSS/Bangumi?bangumiId=3141&subgroupid=370".to_string(),
-            description: "Mikan Project - 葬送的芙莉莲".to_string(),
             items: vec![
                 RssSubscriptionItem {
                     url: "https://mikanani.me/Home/Episode/059724511d60173251b378b04709aceff92fffb5".to_string(),
                     title: "葬送的芙莉莲".to_string(),
                     episode_title: "".to_string(),
-                    description: "[喵萌奶茶屋&LoliHouse] 葬送的芙莉莲 / Sousou no Frieren - 18 [WebRip 1080p HEVC-10bit AAC][简繁日内封字幕][634.12 MB]".to_string(),
                     season: 1,
                     episode: 18,
                     fansub: "[喵萌奶茶屋&LoliHouse]".to_string(),
@@ -297,7 +367,6 @@ mod tests {
                     url: "https://mikanani.me/Home/Episode/872ab5abd72ea223d2a2e36688cc96f83bb71d42".to_string(),
                     title: "葬送的芙莉莲".to_string(),
                     episode_title: "".to_string(),
-                    description: "[喵萌奶茶屋&LoliHouse] 葬送的芙莉莲 / Sousou no Frieren - 17 [WebRip 1080p HEVC-10bit AAC][简繁日内封字幕][639.78 MB]".to_string(),
                     season: 1,
                     episode: 17,
                     fansub: "[喵萌奶茶屋&LoliHouse]".to_string(),
@@ -311,11 +380,11 @@ mod tests {
                 },
             ],
         };
-        assert_eq!(res, expect)
+        assert_eq!(res, expect);
     }
 
     #[test]
-    fn parse_rss_season_2() {
+    fn test_parse_rss_season_2() {
         let rss_content = read_to_string("./tests/dataset/mikan-2.rss").unwrap();
         assert_ne!(&rss_content, "");
 
@@ -324,13 +393,11 @@ mod tests {
 
         let expect = RssSubscription {
             url: "http://mikanani.me/RSS/Bangumi?bangumiId=3223&subgroupid=615".to_string(),
-            description: "Mikan Project - 弱角友崎同学 第二季".to_string(),
             items: vec![
                 RssSubscriptionItem {
                     url: "https://mikanani.me/Home/Episode/65515bee0f9e64d00613e148afac9fbf26e13060".to_string(),
                     title: "弱角友崎同学".to_string(),
                     episode_title: "".to_string(),
-                    description: "[GJ.Y] 弱角友崎同学 2nd STAGE / Jaku-Chara Tomozaki-kun 2nd Stage - 10 (Baha 1920x1080 AVC AAC MP4)[428.25 MB]".to_string(),
                     season: 2,
                     episode: 10,
                     fansub: "[GJ.Y]".to_string(),
@@ -344,11 +411,11 @@ mod tests {
                 },
             ],
         };
-        assert_eq!(res, expect)
+        assert_eq!(res, expect);
     }
 
     #[test]
-    fn parse_rss_aggregation() {
+    fn test_parse_rss_aggregation() {
         let rss_content = read_to_string("./tests/dataset/mikan-aggregation.rss").unwrap();
         assert_ne!(&rss_content, "");
 
@@ -360,7 +427,6 @@ mod tests {
                 url: "https://mikanani.me/Home/Episode/38b3ab86bc9046f12edca2a2408ac1e7161a8c94".to_string(),
                 title: "梦想成为魔法少女".to_string(),
                 episode_title: "".to_string(),
-                description: "[GJ.Y] 梦想成为魔法少女 [年龄限制版] / Mahou Shoujo ni Akogarete - 11 (Baha 1920x1080 AVC AAC MP4)[528.96 MB]".to_string(),
                 season: 1,
                 episode: 11,
                 fansub: "[GJ.Y]".to_string(),
@@ -376,7 +442,6 @@ mod tests {
                 url: "https://mikanani.me/Home/Episode/d2e587e0e10d77fcebdc4552d0725e43e2fa2fe6".to_string(),
                 title: "战国妖狐".to_string(),
                 episode_title: "".to_string(),
-                description: "[GJ.Y] 战国妖狐 / Sengoku Youko - 10 (Baha 1920x1080 AVC AAC MP4)[624.03 MB]".to_string(),
                 season: 1,
                 episode: 10,
                 fansub: "[GJ.Y]".to_string(),
@@ -392,7 +457,6 @@ mod tests {
                 url: "https://mikanani.me/Home/Episode/ef56a70e19199829a0280cc022ece291fa186316".to_string(),
                 title: "欢迎来到实力至上主义的教室".to_string(),
                 episode_title: "".to_string(),
-                description: "[GJ.Y] 欢迎来到实力至上主义的教室 第三季 / Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e 3rd Season - 11 (CR 1920x1080 AVC AAC MKV)[1.37 GB]".to_string(),
                 season: 3,
                 episode: 11,
                 fansub: "[GJ.Y]".to_string(),
@@ -408,7 +472,6 @@ mod tests {
                 url: "https://mikanani.me/Home/Episode/49b9c8dd833629d39e09a4e9568bde6b6a71a01b".to_string(),
                 title: "弱势角色友崎君".to_string(),
                 episode_title: "".to_string(),
-                description: "[GJ.Y] 弱势角色友崎君 第二季 / Jaku-Chara Tomozaki-kun 2nd Stage - 11 (B-Global 1920x1080 HEVC AAC MKV)[239.66 MB]".to_string(),
                 season: 2,
                 episode: 11,
                 fansub: "[GJ.Y]".to_string(),
@@ -424,7 +487,6 @@ mod tests {
                 url: "https://mikanani.me/Home/Episode/f6d8f1b7131135c2c8b295aca18c64cb6405e2aa".to_string(),
                 title: "公主殿下，「拷问」的时间到了".to_string(),
                 episode_title: "".to_string(),
-                description: "[GJ.Y] 公主殿下，「拷问」的时间到了 / Himesama 'Goumon' no Jikan desu - 10 (CR 1920x1080 AVC AAC MKV)[1.37 GB]".to_string(),
                 season: 1,
                 episode: 10,
                 fansub: "[GJ.Y]".to_string(),
@@ -440,7 +502,6 @@ mod tests {
                 url: "https://mikanani.me/Home/Episode/da075c8a8e0b9f71e130b978fb94e4def0745b30".to_string(),
                 title: "我内心的糟糕念头".to_string(),
                 episode_title: "".to_string(),
-                description: "[喵萌奶茶屋&LoliHouse] 我内心的糟糕念头 / Boku no Kokoro no Yabai Yatsu - 22 [WebRip 1080p HEVC-10bit AAC][简繁日内封字幕][273.57 MB]".to_string(),
                 season: 1,
                 episode: 22,
                 fansub: "[喵萌奶茶屋&LoliHouse]".to_string(),
@@ -456,7 +517,6 @@ mod tests {
                 url: "https://mikanani.me/Home/Episode/6f9bb9e56663194eb68a0811890751d1e66f6fbd".to_string(),
                 title: "我独自升级".to_string(),
                 episode_title: "".to_string(),
-                description: "[GJ.Y] 我独自升级 / Ore dake Level Up na Ken - 09 (CR 1920x1080 AVC AAC MKV)[1.37 GB]".to_string(),
                 season: 1,
                 episode: 9,
                 fansub: "[GJ.Y]".to_string(),
