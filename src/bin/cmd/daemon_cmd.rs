@@ -1,8 +1,7 @@
-use bt::{check_downloading_tasks, download_rss_feeds, downloader};
+use bt::downloader::get_downloader;
+use bt::{check_downloading_tasks, download_rss_feeds, notification};
 use clap::{Parser, Subcommand};
 use log::{error, info};
-use std::sync::Arc;
-use tokio::sync::Mutex;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -39,7 +38,8 @@ pub async fn execute(subcommand: DaemonSubcommand) -> anyhow::Result<()> {
             downloading_path_map,
             archived_path,
         } => {
-            let downloader = Arc::new(Mutex::from(downloader::get_downloader()));
+            let downloader = get_downloader().await;
+            let notifier = notification::get_notifier().await;
 
             let downloader_rss = downloader.clone();
             tokio::spawn(async move {
@@ -61,6 +61,7 @@ pub async fn execute(subcommand: DaemonSubcommand) -> anyhow::Result<()> {
                         downloader_rename.clone(),
                         archived_path.clone(),
                         downloading_path_map.clone(),
+                        notifier.clone(),
                     )
                     .await
                     .unwrap_or_else(|e| {

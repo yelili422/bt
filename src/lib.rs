@@ -12,9 +12,9 @@ use tokio::sync::{Mutex, OnceCell};
 
 pub mod api;
 pub mod downloader;
+pub mod notification;
 pub mod renamer;
 pub mod rss;
-
 #[cfg(test)]
 mod test;
 
@@ -76,6 +76,7 @@ pub async fn check_downloading_tasks(
     downloader: Arc<Mutex<Box<dyn Downloader>>>,
     archived_path: String,
     download_path_mapping: Option<String>,
+    notifier: Option<Arc<Mutex<Box<dyn notification::Notifier>>>>,
 ) -> anyhow::Result<()> {
     // update task status
     info!("[downloader] Updating task status...");
@@ -87,21 +88,19 @@ pub async fn check_downloading_tasks(
     downloader::update_task_status(&download_list).await?;
 
     // if task is done, rename the file and update the database
-    info!("[renamer] Renaming completed tasks...");
+    info!("[rename] Renaming completed tasks...");
     let dst_folder = Path::new(&archived_path);
     for task in download_list {
         if task.status == downloader::TaskStatus::Completed {
             // ignore all tasks renamed and not found
             if downloader::is_renamed(&task.hash).await.unwrap_or(true) {
-                debug!(
-                    "[renamer] Skip renaming task [{}] already renamed and not found",
-                    task.hash
-                );
+                debug!("[rename] Skip renaming task [{}] already renamed and not found", task.hash);
                 continue;
             }
 
             let mut file_path = PathBuf::from(task.save_path).join(task.name);
 
+            // replace path if `download_path_mapping` is set
             if let Some(path_map) = download_path_mapping.as_ref() {
                 file_path = renamer::replace_path(file_path, path_map);
             }
@@ -110,9 +109,17 @@ pub async fn check_downloading_tasks(
                 Some(info) => {
                     renamer::rename(&info, &file_path, dst_folder)?;
                     downloader::set_task_renamed(&task.hash).await?;
+
+                    // send notification
+                    if let Some(notifier) = notifier.as_ref() {
+                        let msg = notification::Notification::DownloadFinished(info).to_string();
+                        let notifier_lock = notifier.lock().await;
+                        info!("[notification] Sending notification: {}", msg);
+                        notifier_lock.send(&msg).await;
+                    }
                 }
                 None => {
-                    debug!("[renamer] Skip renaming task [{}] without media info", task.hash);
+                    debug!("[rename] Skip renaming task [{}] without media info", task.hash);
                 }
             }
         }

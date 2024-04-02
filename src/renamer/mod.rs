@@ -3,7 +3,7 @@ use log::info;
 use std::path::{Path, PathBuf};
 
 #[derive(Default, Builder, Debug, PartialEq, Eq)]
-#[builder(setter(into))]
+#[builder(setter(into), default)]
 pub struct BangumiInfo {
     pub show_name: String,
     pub episode_name: Option<String>,
@@ -25,6 +25,14 @@ impl BangumiInfo {
     pub fn file_name(&self, extension: &str) -> String {
         assert!(extension.starts_with('.'), "extension must start with a dot");
 
+        let mut file_name = self.file_name_without_extension();
+
+        file_name.push_str(extension);
+
+        file_name
+    }
+
+    pub fn file_name_without_extension(&self) -> String {
         let mut file_name = String::new();
 
         file_name.push_str(&self.show_name.clone());
@@ -41,8 +49,6 @@ impl BangumiInfo {
                 file_name.push_str(&format!(" {}", display_name));
             }
         }
-
-        file_name.push_str(extension);
 
         file_name
     }

@@ -9,10 +9,11 @@ use derive_builder::Builder;
 use log::{debug, error};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync::Arc;
 use strum_macros::EnumString;
 use thiserror::Error;
-use tokio::sync::{Mutex, MutexGuard};
+use tokio::sync::{Mutex, MutexGuard, OnceCell};
 
 use crate::renamer::BangumiInfo;
 use crate::tx_begin;
@@ -141,7 +142,7 @@ pub trait Downloader: Send + Sync {
 
 #[derive(Debug, Clone, EnumString)]
 #[strum(serialize_all = "lowercase")]
-enum DownloaderType {
+pub enum DownloaderType {
     QBittorrent,
     Dummy,
 }
@@ -237,26 +238,51 @@ pub async fn is_renamed(torrent_hash: &str) -> anyhow::Result<bool> {
     Ok(renamed)
 }
 
-#[cfg(not(test))]
-pub fn get_downloader() -> Box<dyn Downloader> {
-    use std::env;
-    use std::str::FromStr;
+#[allow(dead_code)]
+static GLOBAL_DOWNLOADER: OnceCell<Arc<Mutex<Box<dyn Downloader>>>> = OnceCell::const_new();
 
-    let downloader_type = env::var("DOWNLOADER_TYPE").unwrap_or_default();
-    match DownloaderType::from_str(&downloader_type) {
-        Ok(DownloaderType::QBittorrent) => {
-            let username = env::var("DOWNLOADER_USERNAME").unwrap_or_default();
-            let password = env::var("DOWNLOADER_PASSWORD").unwrap_or_default();
-            let url = env::var("DOWNLOADER_HOST").unwrap_or_default();
-            Box::new(QBittorrentDownloader::new(&username, &password, &url))
+pub async fn get_downloader() -> Arc<Mutex<Box<dyn Downloader>>> {
+    #[cfg(test)]
+    {
+        Arc::new(Mutex::new(Box::new(DummyDownloader::new())))
+    }
+
+    #[cfg(not(test))]
+    match get_downloader_type() {
+        Some(downloader_type) => {
+            let downloader = GLOBAL_DOWNLOADER
+                .get_or_init(|| async {
+                    let downloader = init_downloader(downloader_type);
+                    Arc::new(Mutex::new(downloader))
+                })
+                .await;
+
+            downloader.clone()
         }
-        _ => panic!("Invalid downloader type, {}", downloader_type),
+        None => panic!("Downloader type not set"),
     }
 }
 
-#[cfg(test)]
-pub fn get_downloader() -> Box<dyn Downloader> {
-    Box::new(DummyDownloader::new())
+pub fn get_downloader_type() -> Option<DownloaderType> {
+    match std::env::var("DOWNLOADER_TYPE") {
+        Ok(downloader_type) => Some(
+            DownloaderType::from_str(&downloader_type)
+                .expect(&format!("Invalid downloader type, {}", &downloader_type)),
+        ),
+        Err(_) => None,
+    }
+}
+
+pub fn init_downloader(downloader_type: DownloaderType) -> Box<dyn Downloader> {
+    match downloader_type {
+        DownloaderType::QBittorrent => {
+            let username = std::env::var("DOWNLOADER_USERNAME").unwrap();
+            let password = std::env::var("DOWNLOADER_PASSWORD").unwrap();
+            let url = std::env::var("DOWNLOADER_HOST").unwrap();
+            Box::new(QBittorrentDownloader::new(&username, &password, &url))
+        }
+        _ => unreachable!(),
+    }
 }
 
 #[cfg(test)]
@@ -269,7 +295,7 @@ mod tests {
     async fn test_set_renamed() {
         init().await;
 
-        let downloader = Arc::new(Mutex::new(get_downloader()));
+        let downloader = get_downloader().await;
         let torrent = dummy::get_dummy_torrent();
         download_with_state(
             downloader.clone(),
