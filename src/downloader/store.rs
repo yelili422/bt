@@ -1,6 +1,6 @@
 use crate::downloader::{DownloadTask, TaskStatus};
 use crate::renamer::BangumiInfo;
-use log::info;
+use log::{debug, info};
 use sqlx::query;
 use std::path::Path;
 use std::str::FromStr;
@@ -178,7 +178,7 @@ pub async fn update_task_renamed(
     .execute(&mut **tx)
     .await?;
 
-    info!("[store] Marked task [{}] renamed.", torrent_hash);
+    debug!("[store] Marked task [{}] renamed.", torrent_hash);
     Ok(())
 }
 

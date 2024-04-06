@@ -1,5 +1,5 @@
 use dotenvy::dotenv;
-use log::{debug, error};
+use log::{debug, error, info};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -52,6 +52,14 @@ pub async fn download_rss_feeds(downloader: Arc<Mutex<Box<dyn Downloader>>>) -> 
         match parsers::parse(&rss).await {
             Ok(feeds) => {
                 for feed in &feeds.items {
+                    // If the torrent files mismatch the filter rules, skip downloading
+                    if let Some(filter) = &rss.filters {
+                        if !filter.is_match(&feed).await {
+                            info!("[parser] Skip torrent: {:?}", feed);
+                            continue;
+                        }
+                    }
+
                     downloader::download_with_state(
                         downloader.clone(),
                         &feed.torrent,

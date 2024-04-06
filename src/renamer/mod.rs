@@ -1,5 +1,5 @@
 use derive_builder::Builder;
-use log::info;
+use log::{debug, info};
 use std::path::{Path, PathBuf};
 
 #[derive(Default, Builder, Debug, PartialEq, Eq)]
@@ -66,7 +66,7 @@ impl BangumiInfo {
 /// and the `dst_folder` is `/media/TV`,
 /// it should be linked to `/media/TV/Sousou no Frieren/Season 1/Sousou no Frieren S01E01.mkv`.
 pub fn rename(info: &BangumiInfo, src_path: &Path, dst_folder: &Path) -> anyhow::Result<()> {
-    info!("[rename] Renaming {} to {}", src_path.display(), info.gen_path("mkv").display());
+    debug!("[rename] Renaming {} to {}", src_path.display(), info.gen_path("mkv").display());
 
     if !src_path.exists() {
         return Err(anyhow::Error::msg(format!("File {} not exists", src_path.display())));

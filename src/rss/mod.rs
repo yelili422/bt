@@ -5,12 +5,14 @@ use strum_macros::{Display, EnumString};
 
 use crate::downloader::TorrentMeta;
 use crate::renamer::{BangumiInfo, BangumiInfoBuilder};
+use crate::rss::filter::RssFilterChain;
 use crate::tx_begin;
 
 pub mod parsers;
 mod store;
+mod filter;
 
-#[derive(Debug, Clone, Builder, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Builder, Serialize, Deserialize)]
 #[builder(setter(into))]
 pub struct Rss {
     pub id: Option<i64>,
@@ -19,6 +21,7 @@ pub struct Rss {
     pub rss_type: RssType,
     pub season: Option<u64>,
     pub enabled: Option<bool>,
+    pub filters: Option<RssFilterChain>,
 }
 
 #[allow(unused)]

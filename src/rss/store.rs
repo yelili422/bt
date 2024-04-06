@@ -27,16 +27,18 @@ pub async fn insert_rss(
 ) -> Result<i64, sqlx::Error> {
     let rss_type = rss.rss_type.to_string();
     let season = rss.season.map(|s| s as i64);
+    let filters = serde_json::to_string(&rss.filters).unwrap();
     let id = query!(
         r#"
-INSERT INTO main.rss (url, title, rss_type, enabled, season)
-VALUES (?1, ?2, ?3, ?4, ?5)
+INSERT INTO main.rss (url, title, rss_type, enabled, season, filters)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6)
         "#,
         rss.url,
         rss.title,
         rss_type,
         rss.enabled,
         season,
+        filters,
     )
     .execute(&mut **tx)
     .await?
@@ -67,7 +69,7 @@ pub async fn query_rss(
 ) -> Result<Vec<Rss>, sqlx::Error> {
     let recs = query!(
         r#"
-SELECT id, url, title, rss_type, enabled, season
+SELECT id, url, title, rss_type, enabled, season, filters
 FROM main.rss
         "#,
     )
@@ -76,13 +78,20 @@ FROM main.rss
 
     Ok(recs
         .into_iter()
-        .map(|rec| Rss {
-            id: Some(rec.id),
-            url: rec.url,
-            title: rec.title,
-            rss_type: RssType::from_str(&rec.rss_type).unwrap(),
-            enabled: rec.enabled.map(|e| e == 1),
-            season: rec.season.map(|s| s as u64),
+        .map(|rec| {
+            let filters = match rec.filters {
+                Some(filters) => Some(serde_json::from_str(&filters).unwrap()),
+                None => None,
+            };
+            Rss {
+                id: Some(rec.id),
+                url: rec.url,
+                title: rec.title,
+                rss_type: RssType::from_str(&rec.rss_type).unwrap(),
+                enabled: rec.enabled.map(|e| e == 1),
+                season: rec.season.map(|s| s as u64),
+                filters,
+            }
         })
         .collect())
 }
@@ -94,17 +103,19 @@ pub async fn update_rss(
 ) -> Result<(), sqlx::Error> {
     let rss_type = rss.rss_type.to_string();
     let season = rss.season.map(|s| s as i64);
+    let filters = serde_json::to_string(&rss.filters).unwrap();
     query!(
         r#"
 UPDATE main.rss
-SET url = ?1, title = ?2, rss_type = ?3, enabled = ?4, season = ?5
-WHERE id = ?6
+SET url = ?1, title = ?2, rss_type = ?3, enabled = ?4, season = ?5, filters = ?6
+WHERE id = ?7
         "#,
         rss.url,
         rss.title,
         rss_type,
         rss.enabled,
         season,
+        filters,
         id,
     )
     .execute(&mut **tx)

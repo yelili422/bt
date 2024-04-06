@@ -7,7 +7,8 @@ CREATE TABLE rss
     title    TEXT,
     rss_type TEXT NOT NULL,
     enabled  INTEGER,
-    season   INTEGER
+    season   INTEGER,
+    filters  TEXT
 );
 
 -- INSERT INTO rss (url, title, rss_type, enabled)

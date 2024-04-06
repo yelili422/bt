@@ -80,7 +80,7 @@ impl TorrentMeta {
         self.data.lock().await
     }
 
-    async fn get_info_hash(&self) -> Result<String, TorrentInaccessibleError> {
+    pub async fn get_info_hash(&self) -> Result<String, TorrentInaccessibleError> {
         let data_lock = self.get_data().await;
         match &*data_lock {
             Some(torrent) => Ok(hex::encode(torrent.info_hash())),
@@ -90,7 +90,7 @@ impl TorrentMeta {
         }
     }
 
-    async fn get_name(&self) -> Result<String, TorrentInaccessibleError> {
+    pub async fn get_name(&self) -> Result<String, TorrentInaccessibleError> {
         match &*self.get_data().await {
             Some(torrent) => Ok(torrent.info.name.clone()),
             None => {
@@ -172,7 +172,6 @@ pub async fn download_with_state(
     )
     .await?;
 
-    // FIXME: if download task is not created in downloader, rollback
     if created == 0 {
         // Skip downloading if the task is already created
         return Ok(());

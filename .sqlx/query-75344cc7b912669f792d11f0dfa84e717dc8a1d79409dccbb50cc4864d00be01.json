@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\nSELECT id, url, title, rss_type, enabled, season\nFROM main.rss\n        ",
+  "query": "\nSELECT id, url, title, rss_type, enabled, season, filters\nFROM main.rss\n        ",
   "describe": {
     "columns": [
       {
@@ -32,6 +32,11 @@
         "name": "season",
         "ordinal": 5,
         "type_info": "Int64"
+      },
+      {
+        "name": "filters",
+        "ordinal": 6,
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -43,8 +48,9 @@
       true,
       false,
       true,
+      true,
       true
     ]
   },
-  "hash": "c08ba1c2201011417b4b4a5a84715314a0ea2cac8563940026061b066a5214a8"
+  "hash": "75344cc7b912669f792d11f0dfa84e717dc8a1d79409dccbb50cc4864d00be01"
 }
