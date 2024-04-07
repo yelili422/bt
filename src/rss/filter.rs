@@ -143,6 +143,7 @@ mod tests {
         let filter_chain = RssFilterChain(vec![
             (RssFilter::FilenameRegex("CR|Crunchyroll".to_string()), RssFilterType::Include),
             (RssFilter::FilenameRegex("Baha".to_string()), RssFilterType::Include),
+            (RssFilter::FilenameRegex(r#"\.mp4$"#.to_string()), RssFilterType::Exclude),
         ]);
 
         let filenames = vec![

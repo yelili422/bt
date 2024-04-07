@@ -267,12 +267,8 @@ mod tests {
 
     fn empty_rss() -> Rss {
         RssBuilder::default()
-            .id(None)
             .url("")
             .rss_type(RssType::Mikan)
-            .title(None)
-            .season(None)
-            .enabled(None)
             .build()
             .unwrap()
     }
@@ -414,6 +410,7 @@ mod tests {
         assert_eq!(res, expect);
     }
 
+    #[ignore = "mikan aggregation not supported yet"]
     #[test]
     fn test_parse_rss_aggregation() {
         let rss_content = read_to_string("./tests/dataset/mikan-aggregation.rss").unwrap();

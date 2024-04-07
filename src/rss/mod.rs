@@ -8,19 +8,24 @@ use crate::renamer::{BangumiInfo, BangumiInfoBuilder};
 use crate::rss::filter::RssFilterChain;
 use crate::tx_begin;
 
+mod filter;
 pub mod parsers;
 mod store;
-mod filter;
 
 #[derive(Debug, Clone, Builder, Serialize, Deserialize)]
 #[builder(setter(into))]
 pub struct Rss {
+    #[builder(default)]
     pub id: Option<i64>,
     pub url: String,
+    #[builder(default)]
     pub title: Option<String>,
     pub rss_type: RssType,
+    #[builder(default)]
     pub season: Option<u64>,
+    #[builder(default)]
     pub enabled: Option<bool>,
+    #[builder(default)]
     pub filters: Option<RssFilterChain>,
 }
 

@@ -2,6 +2,8 @@ use crate::rss::{Rss, RssType};
 use sqlx::query;
 use std::str::FromStr;
 
+use super::filter::RssFilterChain;
+
 pub async fn check_repeat_by_url(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     url: &str,
@@ -21,13 +23,27 @@ WHERE url = ?1
     Ok(rec.map(|rec| rec.id))
 }
 
+fn serialize_filters(rss_filters: &Option<RssFilterChain>) -> Option<String> {
+    match &rss_filters {
+        Some(f) => Some(serde_json::to_string(f).unwrap()),
+        None => None,
+    }
+}
+
+fn deserialize_filters(filters_str: &Option<String>) -> Option<RssFilterChain> {
+    match filters_str {
+        Some(filters_str) => Some(serde_json::from_str(filters_str).unwrap()),
+        None => None,
+    }
+}
+
 pub async fn insert_rss(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     rss: &Rss,
 ) -> Result<i64, sqlx::Error> {
     let rss_type = rss.rss_type.to_string();
     let season = rss.season.map(|s| s as i64);
-    let filters = serde_json::to_string(&rss.filters).unwrap();
+    let filters = serialize_filters(&rss.filters);
     let id = query!(
         r#"
 INSERT INTO main.rss (url, title, rss_type, enabled, season, filters)
@@ -78,20 +94,14 @@ FROM main.rss
 
     Ok(recs
         .into_iter()
-        .map(|rec| {
-            let filters = match rec.filters {
-                Some(filters) => Some(serde_json::from_str(&filters).unwrap()),
-                None => None,
-            };
-            Rss {
-                id: Some(rec.id),
-                url: rec.url,
-                title: rec.title,
-                rss_type: RssType::from_str(&rec.rss_type).unwrap(),
-                enabled: rec.enabled.map(|e| e == 1),
-                season: rec.season.map(|s| s as u64),
-                filters,
-            }
+        .map(|rec| Rss {
+            id: Some(rec.id),
+            url: rec.url,
+            title: rec.title,
+            rss_type: RssType::from_str(&rec.rss_type).unwrap(),
+            enabled: rec.enabled.map(|e| e == 1),
+            season: rec.season.map(|s| s as u64),
+            filters: deserialize_filters(&rec.filters),
         })
         .collect())
 }
@@ -103,7 +113,7 @@ pub async fn update_rss(
 ) -> Result<(), sqlx::Error> {
     let rss_type = rss.rss_type.to_string();
     let season = rss.season.map(|s| s as i64);
-    let filters = serde_json::to_string(&rss.filters).unwrap();
+    let filters = serialize_filters(&rss.filters);
     query!(
         r#"
 UPDATE main.rss
