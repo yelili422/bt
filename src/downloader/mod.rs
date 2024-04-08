@@ -27,9 +27,7 @@ pub use task::*;
 #[builder(setter(into, strip_option), default)]
 pub struct TorrentMeta {
     /// The url of the torrent file
-    url: String,
-    #[serde(skip_serializing, skip_deserializing)]
-    data: Arc<Mutex<Option<Torrent>>>,
+    pub url: String,
     content_len: Option<u64>,
     pub_date: Option<String>,
     save_path: Option<String>,
@@ -145,6 +143,13 @@ pub trait Downloader: Send + Sync {
 pub enum DownloaderType {
     QBittorrent,
     Dummy,
+}
+
+pub async fn is_task_exist(torrent_url: &str) -> anyhow::Result<bool> {
+    let mut tx = tx_begin().await?;
+    let exist = store::is_task_exist(&mut tx, torrent_url).await?;
+    tx.rollback().await?;
+    Ok(exist)
 }
 
 pub async fn download_with_state(

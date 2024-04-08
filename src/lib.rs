@@ -52,10 +52,16 @@ pub async fn download_rss_feeds(downloader: Arc<Mutex<Box<dyn Downloader>>>) -> 
         match parsers::parse(&rss).await {
             Ok(feeds) => {
                 for feed in &feeds.items {
+                    // If the torrent already in the download list, skip downloading
+                    if downloader::is_task_exist(&feed.torrent.url).await? {
+                        info!("[parser] Task already in downloading list: {:?}", feed);
+                        continue;
+                    }
+
                     // If the torrent files mismatch the filter rules, skip downloading
                     if let Some(filter) = &rss.filters {
                         if !filter.is_match(&feed).await {
-                            info!("[parser] Skip torrent: {:?}", feed);
+                            info!("[parser] Skip torrent by rules: {:?}", feed);
                             continue;
                         }
                     }
