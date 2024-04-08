@@ -116,11 +116,13 @@ mod tests {
         ));
     }
 
-    fn gen_rss_item_with_filename(filename: &str) -> RssSubscriptionItem {
-        use crate::downloader::TorrentMetaBuilder;
+    async fn gen_rss_item_with_filename(filename: &str) -> RssSubscriptionItem {
+        use crate::downloader::{update_torrent_cache, TorrentMetaBuilder};
         use crate::test::gen_torrent_with_custom_filename;
-        use std::sync::Arc;
-        use tokio::sync::Mutex;
+
+        let url = "https://example.com/example.torrent";
+        let torrent = gen_torrent_with_custom_filename(filename);
+        update_torrent_cache(url, &torrent).await;
 
         RssSubscriptionItem {
             url: "".to_string(),
@@ -131,8 +133,7 @@ mod tests {
             fansub: "".to_string(),
             media_info: "".to_string(),
             torrent: TorrentMetaBuilder::default()
-                .url("https://example.com/example.torrent".to_string())
-                .data(Arc::new(Mutex::new(Some(gen_torrent_with_custom_filename(filename)))))
+                .url(url.to_string())
                 .build()
                 .unwrap(),
         }
@@ -155,7 +156,7 @@ mod tests {
         ];
         let results = vec![true, true, true, false, false];
         for (filename, result) in filenames.iter().zip(results.iter()) {
-            let rss_item = gen_rss_item_with_filename(filename);
+            let rss_item = gen_rss_item_with_filename(filename).await;
             assert_eq!(filter_chain.is_match(&rss_item).await, *result);
         }
     }

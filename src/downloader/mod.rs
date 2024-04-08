@@ -7,13 +7,16 @@ mod task;
 use async_trait::async_trait;
 use derive_builder::Builder;
 use log::{debug, error};
+use lru::LruCache;
+use once_cell::sync::{Lazy, OnceCell};
 use serde::{Deserialize, Serialize};
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 use strum_macros::EnumString;
 use thiserror::Error;
-use tokio::sync::{Mutex, MutexGuard, OnceCell};
+use tokio::sync::Mutex;
 
 use crate::renamer::BangumiInfo;
 use crate::tx_begin;
@@ -23,7 +26,7 @@ pub use qbittorrent::QBittorrentDownloader;
 pub use task::*;
 
 /// The metadata of a torrent file
-#[derive(Debug, Clone, Builder, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Builder, Default, Serialize, Deserialize)]
 #[builder(setter(into, strip_option), default)]
 pub struct TorrentMeta {
     /// The url of the torrent file
@@ -33,18 +36,6 @@ pub struct TorrentMeta {
     save_path: Option<String>,
     category: Option<String>,
 }
-
-impl PartialEq<Self> for TorrentMeta {
-    fn eq(&self, other: &Self) -> bool {
-        self.url == other.url
-            && self.content_len == other.content_len
-            && self.pub_date == other.pub_date
-            && self.save_path == other.save_path
-            && self.category == other.category
-    }
-}
-
-impl Eq for TorrentMeta {}
 
 #[allow(dead_code)]
 impl TorrentMeta {
@@ -60,43 +51,41 @@ impl TorrentMeta {
         Ok(content.to_vec())
     }
 
-    async fn fetch_torrent(&self) -> Result<(), TorrentInaccessibleError> {
-        let mut data_lock = self.data.lock().await;
-        {
-            if data_lock.is_none() {
-                let dot_torrent = self.download_dot_torrent().await?;
-                let torrent = Torrent::from_bytes(&dot_torrent)
-                    .map_err(|e| TorrentInaccessibleError(self.url.clone(), e.to_string()))?;
-                *data_lock = Some(torrent);
-            }
-        }
-
-        Ok(())
+    async fn fetch_torrent(&self) -> Result<Torrent, TorrentInaccessibleError> {
+        let dot_torrent = self.download_dot_torrent().await?;
+        Torrent::from_bytes(&dot_torrent)
+            .map_err(|e| TorrentInaccessibleError(self.url.clone(), e.to_string()))
     }
 
-    async fn get_data(&self) -> MutexGuard<Option<Torrent>> {
-        self.data.lock().await
+    // Return a clone of the torrent in cache.
+    // If it's not present, download the torrent and update the cache.
+    async fn get_data(&self) -> Result<Torrent, TorrentInaccessibleError> {
+        let mut cache_lock = TORRENT_CACHE.lock().await;
+        let cache = cache_lock.get(&self.url);
+        match cache {
+            Some(torrent) => Ok(torrent.clone()),
+            None => {
+                let torrent = self.fetch_torrent().await?;
+                cache_lock.put(self.url.clone(), torrent.clone());
+                Ok(torrent)
+            }
+        }
     }
 
     pub async fn get_info_hash(&self) -> Result<String, TorrentInaccessibleError> {
-        let data_lock = self.get_data().await;
-        match &*data_lock {
-            Some(torrent) => Ok(hex::encode(torrent.info_hash())),
-            None => {
-                panic!("Torrent data not fetched")
-            }
-        }
+        let torrent = self.get_data().await?;
+        Ok(hex::encode(&torrent.info_hash()))
     }
 
     pub async fn get_name(&self) -> Result<String, TorrentInaccessibleError> {
-        match &*self.get_data().await {
-            Some(torrent) => Ok(torrent.info.name.clone()),
-            None => {
-                panic!("Torrent data not fetched")
-            }
-        }
+        let torrent = self.get_data().await?;
+        Ok(torrent.info.name)
     }
 }
+
+type TorrentCache = LruCache<String, Torrent>;
+static TORRENT_CACHE: Lazy<Mutex<TorrentCache>> =
+    Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(100).unwrap())));
 
 #[derive(Debug, Error)]
 #[error("Torrent inaccessible: {0}\n {1}")]
@@ -157,7 +146,6 @@ pub async fn download_with_state(
     torrent_meta: &TorrentMeta,
     bangumi_info: &BangumiInfo,
 ) -> anyhow::Result<()> {
-    torrent_meta.fetch_torrent().await?;
     let info_hash = torrent_meta.get_info_hash().await?;
 
     let mut tx = tx_begin().await?;
@@ -243,9 +231,9 @@ pub async fn is_renamed(torrent_hash: &str) -> anyhow::Result<bool> {
 }
 
 #[allow(dead_code)]
-static GLOBAL_DOWNLOADER: OnceCell<Arc<Mutex<Box<dyn Downloader>>>> = OnceCell::const_new();
+static GLOBAL_DOWNLOADER: OnceCell<Arc<Mutex<Box<dyn Downloader>>>> = OnceCell::new();
 
-pub async fn get_downloader() -> Arc<Mutex<Box<dyn Downloader>>> {
+pub fn get_downloader() -> Arc<Mutex<Box<dyn Downloader>>> {
     #[cfg(test)]
     {
         Arc::new(Mutex::new(Box::new(DummyDownloader::new())))
@@ -254,12 +242,10 @@ pub async fn get_downloader() -> Arc<Mutex<Box<dyn Downloader>>> {
     #[cfg(not(test))]
     match get_downloader_type() {
         Some(downloader_type) => {
-            let downloader = GLOBAL_DOWNLOADER
-                .get_or_init(|| async {
-                    let downloader = init_downloader(downloader_type);
-                    Arc::new(Mutex::new(downloader))
-                })
-                .await;
+            let downloader = GLOBAL_DOWNLOADER.get_or_init(|| {
+                let downloader = init_downloader(downloader_type);
+                Arc::new(Mutex::new(downloader))
+            });
 
             downloader.clone()
         }
@@ -290,17 +276,25 @@ pub fn init_downloader(downloader_type: DownloaderType) -> Box<dyn Downloader> {
 }
 
 #[cfg(test)]
+#[allow(unused)]
+pub async fn update_torrent_cache(url: &str, torrent: &Torrent) {
+    let mut cache_lock = TORRENT_CACHE.lock().await;
+    cache_lock.put(url.to_string(), torrent.clone());
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
-    use crate::init;
-    use crate::renamer::BangumiInfoBuilder;
 
     #[tokio::test]
     async fn test_set_renamed() {
+        use crate::renamer::BangumiInfoBuilder;
+        use crate::{init, test::get_dummy_torrent};
+
         init().await;
 
-        let downloader = get_downloader().await;
-        let torrent = dummy::get_dummy_torrent();
+        let downloader = get_downloader();
+        let torrent = get_dummy_torrent().await;
         download_with_state(
             downloader.clone(),
             &torrent,

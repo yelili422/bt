@@ -38,7 +38,7 @@ pub async fn execute(subcommand: DaemonSubcommand) -> anyhow::Result<()> {
             downloading_path_map,
             archived_path,
         } => {
-            let downloader = get_downloader().await;
+            let downloader = get_downloader();
             let notifier = notification::get_notifier().await;
 
             let downloader_rss = downloader.clone();

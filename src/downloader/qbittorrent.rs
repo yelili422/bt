@@ -119,14 +119,14 @@ mod tests {
 
     use super::QBittorrentDownloader;
 
-    async fn get_downloader() -> Result<QBittorrentDownloader, DownloaderError> {
+    fn get_downloader() -> Result<QBittorrentDownloader, DownloaderError> {
         Ok(QBittorrentDownloader::new("admin", "adminadmin", "http://localhost:8080"))
     }
 
     #[ignore]
     #[tokio::test]
     async fn login() {
-        let downloader = get_downloader().await.unwrap();
+        let downloader = get_downloader().unwrap();
         let version = downloader.application_version().await.unwrap();
         assert_ne!(version, "Forbidden");
         assert_ne!(version, "");
@@ -135,7 +135,7 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn download() {
-        let downloader = get_downloader().await.unwrap();
+        let downloader = get_downloader().unwrap();
         let torrent = crate::downloader::TorrentMetaBuilder::default()
             .url("https://mikanani.me/Download/20240111/872ab5abd72ea223d2a2e36688cc96f83bb71d42.torrent")
             .content_len(1024u64)
@@ -157,7 +157,7 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn get_download_list() {
-        let downloader = get_downloader().await.unwrap();
+        let downloader = get_downloader().unwrap();
         let torrents = downloader.get_download_list().await.unwrap();
         dbg!(&torrents);
     }

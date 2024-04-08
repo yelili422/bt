@@ -1,7 +1,7 @@
 use actix_web::dev::{Service, ServiceResponse};
 use actix_web::test;
 
-use crate::downloader::Torrent;
+use crate::downloader::{update_torrent_cache, Torrent, TorrentMeta, TorrentMetaBuilder};
 use crate::init;
 
 #[allow(unused)]
@@ -23,4 +23,20 @@ pub fn gen_torrent_with_custom_filename(filename: &str) -> Torrent {
         filename
     );
     Torrent::from_bytes(torrent_content.as_bytes()).unwrap()
+}
+
+#[allow(unused)]
+pub async fn get_dummy_torrent() -> TorrentMeta {
+    let dot_torrent =
+        std::fs::read("tests/dataset/872ab5abd72ea223d2a2e36688cc96f83bb71d42.torrent").unwrap();
+    let torrent: Torrent = serde_bencode::from_bytes(&dot_torrent).unwrap();
+
+    let url = "https://example.com/dummy-1.torrent";
+    update_torrent_cache(url, &torrent).await;
+
+    TorrentMetaBuilder::default()
+        .url(url.to_string())
+        .category("test_category".to_string())
+        .build()
+        .unwrap()
 }
