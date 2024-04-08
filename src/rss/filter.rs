@@ -79,7 +79,12 @@ impl RssFilterChain {
                 }
             }
         }
-        include_matched
+        include_matched || self.count_filters(RssFilterType::Include) == 0
+    }
+
+    #[inline]
+    fn count_filters(&self, filter_type: RssFilterType) -> usize {
+        self.0.iter().filter(|(_, t)| *t == filter_type).count()
     }
 }
 
@@ -155,6 +160,26 @@ mod tests {
             "[Up to 21°C] Yuru Camp△ Season 3 - 01 (friDay 1920x1080 AVC AAC MKV) [5BE12A49].mkv",
         ];
         let results = vec![true, true, true, false, false];
+        for (filename, result) in filenames.iter().zip(results.iter()) {
+            let rss_item = gen_rss_item_with_filename(filename).await;
+            assert_eq!(filter_chain.is_match(&rss_item).await, *result);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_filter_chain_exclude_only() {
+        let filter_chain = RssFilterChain(vec![(
+            RssFilter::FilenameRegex(r#"\.mp4$"#.to_string()),
+            RssFilterType::Exclude,
+        )]);
+
+        let filenames = vec![
+            "[Up to 21°C] Yuru Camp△ Season 3 - 01 (CR 1920x1080 AVC AAC MKV) [5BE12A49].mkv",
+            "[Up to 21°C] Yuru Camp△ Season 3 - 01 (crunchyroll 1920x1080 AVC AAC MKV) [5BE12A49].mkv",
+            "[Up to 21°C] Yuru Camp△ Season 3 - 01 (Baha 1920x1080 AVC AAC MKV) [5BE12A49].mkv",
+            "[Up to 21°C] Yuru Camp△ Season 3 - 01 (Baha 1920x1080 AVC AAC MKV) [5BE12A49].mp4",
+        ];
+        let results = vec![true, true, true, false];
         for (filename, result) in filenames.iter().zip(results.iter()) {
             let rss_item = gen_rss_item_with_filename(filename).await;
             assert_eq!(filter_chain.is_match(&rss_item).await, *result);

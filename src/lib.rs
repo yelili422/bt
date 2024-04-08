@@ -54,7 +54,7 @@ pub async fn download_rss_feeds(downloader: Arc<Mutex<Box<dyn Downloader>>>) -> 
                 for feed in &feeds.items {
                     // If the torrent already in the download list, skip downloading
                     if downloader::is_task_exist(&feed.torrent.url).await? {
-                        info!("[parser] Task already in downloading list: {:?}", feed);
+                        debug!("[parser] Task already in downloading list: {:?}", feed);
                         continue;
                     }
 
