@@ -44,7 +44,8 @@ pub struct RssSubscription {
     pub items: Vec<RssSubscriptionItem>,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Builder)]
+#[builder(setter(into))]
 pub struct RssSubscriptionItem {
     pub url: String,
     pub title: String,
