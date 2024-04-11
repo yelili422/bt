@@ -87,6 +87,7 @@ pub async fn query_rss(
         r#"
 SELECT id, url, title, rss_type, enabled, season, filters
 FROM main.rss
+ORDER BY title ASC, season ASC
         "#,
     )
     .fetch_all(&mut **tx)

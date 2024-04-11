@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\nSELECT id, url, title, rss_type, enabled, season, filters\nFROM main.rss\n        ",
+  "query": "\nSELECT id, url, title, rss_type, enabled, season, filters\nFROM main.rss\nORDER BY title ASC, season ASC\n        ",
   "describe": {
     "columns": [
       {
@@ -52,5 +52,5 @@
       true
     ]
   },
-  "hash": "75344cc7b912669f792d11f0dfa84e717dc8a1d79409dccbb50cc4864d00be01"
+  "hash": "74860e8395d178f69a43415da413c36ff7706100719d12d8c184bd2fb4d4394b"
 }
