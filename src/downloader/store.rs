@@ -74,12 +74,9 @@ pub async fn is_task_exist(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     torrent_url: &str,
 ) -> Result<bool, sqlx::Error> {
-    let rec = query!(
-        r#"SELECT * FROM main.download_task WHERE torrent_url = ?1"#,
-        torrent_url
-    )
-    .fetch_optional(&mut **tx)
-    .await?;
+    let rec = query!(r#"SELECT * FROM main.download_task WHERE torrent_url = ?1"#, torrent_url)
+        .fetch_optional(&mut **tx)
+        .await?;
 
     Ok(rec.is_some())
 }

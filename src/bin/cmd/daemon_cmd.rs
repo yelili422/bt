@@ -15,7 +15,7 @@ enum DaemonCommands {
     /// Start the daemon for fetching RSS feeds and downloading torrents
     Start {
         /// Rss update interval in seconds
-        #[arg(long, short, default_value = "300")]
+        #[arg(long, short = 'i', default_value = "300")]
         interval: u64,
 
         /// Downloading path mapping
