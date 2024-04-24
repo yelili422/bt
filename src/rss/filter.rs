@@ -125,7 +125,7 @@ mod tests {
         use crate::downloader::{update_torrent_cache, TorrentMetaBuilder};
         use crate::test::gen_torrent_with_custom_filename;
 
-        let url = "https://example.com/example.torrent";
+        let url = &format!("https://example.com/example.torrent?filename={}", filename);
         let torrent = gen_torrent_with_custom_filename(filename);
         update_torrent_cache(url, &torrent).await;
 
@@ -162,7 +162,7 @@ mod tests {
         let results = vec![true, true, true, false, false];
         for (filename, result) in filenames.iter().zip(results.iter()) {
             let rss_item = gen_rss_item_with_filename(filename).await;
-            assert_eq!(filter_chain.is_match(&rss_item).await, *result);
+            assert_eq!(filter_chain.is_match(&rss_item).await, *result, "{}", filename);
         }
     }
 
@@ -182,7 +182,7 @@ mod tests {
         let results = vec![true, true, true, false];
         for (filename, result) in filenames.iter().zip(results.iter()) {
             let rss_item = gen_rss_item_with_filename(filename).await;
-            assert_eq!(filter_chain.is_match(&rss_item).await, *result);
+            assert_eq!(filter_chain.is_match(&rss_item).await, *result, "{}", filename);
         }
     }
 }
