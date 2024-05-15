@@ -27,6 +27,8 @@ pub struct Rss {
     pub enabled: Option<bool>,
     #[builder(default)]
     pub filters: Option<RssFilterChain>,
+    #[builder(default)]
+    pub description: Option<String>,
 }
 
 #[allow(unused)]
@@ -65,7 +67,7 @@ impl From<&RssSubscriptionItem> for BangumiInfo {
             // Display name is necessary because some bangumies have multiple versions
             // from different platforms
             // When renaming the file, the display name is used as the file name to avoid conflicts
-            .display_name(s.media_info.clone())
+            .display_name(format!("{}{}", s.fansub, s.media_info))
             .season(s.season)
             .episode(s.episode)
             .category(None)
@@ -155,5 +157,31 @@ mod tests {
         delete_rss(id).await.unwrap();
         let rss_list = list_rss().await.unwrap();
         assert_eq!(rss_list.len(), 0);
+    }
+
+    #[test]
+    fn test_rss_item_to_bangumi_info() {
+        let rss_item = RssSubscriptionItem {
+            url: "https://mikanani.me/Home/Episode/059724511d60173251b378b04709aceff92fffb5".to_string(),
+            title: "葬送的芙莉莲".to_string(),
+            episode_title: "".to_string(),
+            season: 1,
+            episode: 18,
+            fansub: "[喵萌奶茶屋&LoliHouse]".to_string(),
+            media_info: "[WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]".to_string(),
+            torrent: crate::downloader::TorrentMetaBuilder::default()
+                .url("https://mikanani.me/Download/20240118/059724511d60173251b378b04709aceff92fffb5.torrent")
+                .content_len(664923008u64)
+                .pub_date("2024-01-18T06:57:43.93")
+                .build()
+                .unwrap(),
+        };
+
+        let bangumi_info: BangumiInfo = (&rss_item).into();
+        assert_eq!(bangumi_info.show_name, "葬送的芙莉莲");
+        assert_eq!(bangumi_info.episode_name, Some(String::from("")));
+        assert_eq!(bangumi_info.display_name, Some(String::from("[喵萌奶茶屋&LoliHouse][WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]")));
+        assert_eq!(bangumi_info.season, 1);
+        assert_eq!(bangumi_info.episode, 18);
     }
 }
