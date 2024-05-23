@@ -65,6 +65,8 @@ impl BangumiInfo {
 /// e.g., if the `src_path` is `/download/Sousou no Frieren S01E01.mkv`,
 /// and the `dst_folder` is `/media/TV`,
 /// it should be linked to `/media/TV/Sousou no Frieren/Season 1/Sousou no Frieren S01E01.mkv`.
+///
+/// Note: `src_path` means the original path may be a file or a folder.
 pub fn rename(info: &BangumiInfo, src_path: &Path, dst_folder: &Path) -> anyhow::Result<()> {
     debug!("[rename] Renaming {} to {}", src_path.display(), info.gen_path("mkv").display());
 
@@ -72,18 +74,33 @@ pub fn rename(info: &BangumiInfo, src_path: &Path, dst_folder: &Path) -> anyhow:
         return Err(anyhow::Error::msg(format!("File {} not exists", src_path.display())));
     }
 
-    // TODO: support folder
-    if !src_path.is_file() {
-        return Err(anyhow::Error::msg(format!("Unsupported file type: {}", src_path.display())));
+    if src_path.is_file() {
+        let extension = src_path
+            .extension()
+            .ok_or(anyhow::Error::msg(format!("File {} has no extension", &src_path.display())))?;
+
+        let dst_path = dst_folder.join(info.gen_path(extension.to_str().unwrap()));
+
+        link(src_path, &dst_path)?;
+    } else if src_path.is_dir() {
+        for entry in std::fs::read_dir(src_path)? {
+            let entry = entry?;
+
+            if entry.file_type()?.is_dir() {
+                continue;
+            }
+
+            let entry_path = entry.path();
+            let extension = entry_path.extension().ok_or(anyhow::Error::msg(format!(
+                "File {} has no extension",
+                &entry_path.display()
+            )))?;
+
+            let dst_path = dst_folder.join(info.gen_path(extension.to_str().unwrap()));
+
+            link(&entry_path, &dst_path)?;
+        }
     }
-
-    let extension = src_path
-        .extension()
-        .ok_or(anyhow::Error::msg(format!("File {} has no extension", &src_path.display())))?;
-
-    let dst_path = dst_folder.join(info.gen_path(extension.to_str().unwrap()));
-
-    link(src_path, &dst_path)?;
 
     Ok(())
 }
@@ -174,11 +191,38 @@ mod tests {
             ..Default::default()
         };
 
-        let dst_path = dst_folder.join("Sousou no Frieren/Season 1/Sousou no Frieren S01E12.mkv");
-
         rename(&bangumi_info, src_path, dst_folder).unwrap();
 
+        let dst_path = dst_folder.join("Sousou no Frieren/Season 1/Sousou no Frieren S01E12.mkv");
         let content = std::fs::read_to_string(dst_path).unwrap();
         assert_eq!(content, "test");
+    }
+
+    #[test]
+    fn test_rename_dir() {
+        let src_dir = Path::new("/tmp/迷宫饭");
+        std::fs::create_dir(src_dir).unwrap();
+
+        std::fs::write(&src_dir.join("迷宫饭[1].mkv"), "mkv_content").unwrap();
+        std::fs::write(&src_dir.join("迷宫饭[1].ass"), "ass_content").unwrap();
+
+        let dst_folder = Path::new("/tmp/TV");
+        let bangumi_info = BangumiInfo {
+            show_name: String::from("迷宫饭"),
+            season: 1,
+            episode: 1,
+            ..Default::default()
+        };
+
+        rename(&bangumi_info, src_dir, dst_folder).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(dst_folder.join("迷宫饭/Season 1/迷宫饭 S01E01.mkv")).unwrap(),
+            "mkv_content"
+        );
+        assert_eq!(
+            std::fs::read_to_string(dst_folder.join("迷宫饭/Season 1/迷宫饭 S01E01.ass")).unwrap(),
+            "ass_content"
+        );
     }
 }

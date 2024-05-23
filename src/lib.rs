@@ -106,33 +106,50 @@ pub async fn check_downloading_tasks(
     let dst_folder = Path::new(&archived_path);
     for task in download_list {
         if task.status == downloader::TaskStatus::Completed {
-            // ignore all tasks renamed and not found
-            if downloader::is_renamed(&task.hash).await.unwrap_or(true) {
-                debug!("[rename] Skip renaming task [{}] already renamed and not found", task.hash);
-                continue;
-            }
+            // ignore all tasks renamed or not found
+            match downloader::is_renamed(&task.hash).await {
+                Ok(true) => {
+                    debug!("[rename] Skip renaming task [{}] already renamed", task.hash);
+                    continue;
+                }
+                Err(_) => {
+                    debug!("[rename] Skip renaming task download manually: [{}]", task.hash);
+                    continue;
+                }
+                _ => {}
+            };
 
-            let mut file_path = PathBuf::from(task.save_path).join(task.name);
+            let mut src_path = PathBuf::from(task.save_path).join(task.name);
 
             // replace path if `download_path_mapping` is set
             if let Some(path_map) = download_path_mapping.as_ref() {
-                file_path = renamer::replace_path(file_path, path_map);
+                src_path = renamer::replace_path(src_path, path_map);
             }
 
             match downloader::get_bangumi_info(&task.hash).await? {
                 Some(info) => {
-                    renamer::rename(&info, &file_path, dst_folder)?;
-                    downloader::set_task_renamed(&task.hash).await?;
+                    match renamer::rename(&info, &src_path, dst_folder) {
+                        Ok(()) => {
+                            downloader::set_task_renamed(&task.hash).await?;
 
-                    // send notification
-                    if let Some(notifier) = notifier.as_ref() {
-                        let msg = notification::Notification::DownloadFinished(info).to_string();
-                        let notifier_lock = notifier.lock().await;
-                        debug!("[notification] Sending notification: {}", msg);
-                        notifier_lock.send(&msg).await;
+                            // TODO: Try to move the downloaded files to a separate folder.
+
+                            // Send notification
+                            if let Some(notifier) = notifier.as_ref() {
+                                let msg =
+                                    notification::Notification::DownloadFinished(info).to_string();
+                                let notifier_lock = notifier.lock().await;
+                                debug!("[notification] Sending notification: {}", msg);
+                                notifier_lock.send(&msg).await;
+                            }
+                        }
+                        Err(e) => {
+                            error!("[rename] Failed to rename task [{}]: {:?}", task.hash, e);
+                        }
                     }
                 }
                 None => {
+                    // This task was downloaded manually.
                     debug!("[rename] Skip renaming task [{}] without media info", task.hash);
                 }
             }
