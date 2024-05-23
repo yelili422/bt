@@ -180,7 +180,12 @@ mod tests {
         let bangumi_info: BangumiInfo = (&rss_item).into();
         assert_eq!(bangumi_info.show_name, "葬送的芙莉莲");
         assert_eq!(bangumi_info.episode_name, Some(String::from("")));
-        assert_eq!(bangumi_info.display_name, Some(String::from("[喵萌奶茶屋&LoliHouse][WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]")));
+        assert_eq!(
+            bangumi_info.display_name,
+            Some(String::from(
+                "[喵萌奶茶屋&LoliHouse][WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]"
+            ))
+        );
         assert_eq!(bangumi_info.season, 1);
         assert_eq!(bangumi_info.episode, 18);
     }

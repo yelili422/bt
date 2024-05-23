@@ -495,7 +495,7 @@ mod tests {
 
     #[ignore = "mikan aggregation not supported yet"]
     #[test]
-    fn test_parse_rss_aggregation() { 
+    fn test_parse_rss_aggregation() {
         let rss_content = read_to_string("./tests/dataset/mikan-aggregation.rss").unwrap();
         assert_ne!(&rss_content, "");
 

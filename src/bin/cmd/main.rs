@@ -4,6 +4,7 @@ use bt::init;
 
 mod daemon_cmd;
 mod rss_cmd;
+mod torrent_cmd;
 
 // The Bangumi Tools CLI
 #[derive(Parser, Debug)]
@@ -17,6 +18,7 @@ struct Cli {
 enum Commands {
     Daemon(daemon_cmd::DaemonSubcommand),
     Rss(rss_cmd::RssSubcommand),
+    Torrent(torrent_cmd::TorrentSubcommand),
 }
 
 #[tokio::main]
@@ -27,6 +29,7 @@ async fn main() {
     match args.command {
         Commands::Daemon(subcommand) => daemon_cmd::execute(subcommand).await,
         Commands::Rss(subcommand) => rss_cmd::execute(subcommand).await,
+        Commands::Torrent(subcommand) => torrent_cmd::execute(subcommand).await,
     }
     .unwrap();
 }
