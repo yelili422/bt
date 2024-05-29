@@ -38,6 +38,8 @@ pub async fn execute(subcommand: DaemonSubcommand) -> anyhow::Result<()> {
             downloading_path_map,
             archived_path,
         } => {
+            bt::init().await;
+
             let downloader = get_downloader();
             let notifier = notification::get_notifier().await;
 
