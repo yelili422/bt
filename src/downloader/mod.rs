@@ -79,7 +79,7 @@ impl TorrentMeta {
 
     pub async fn get_name(&self) -> Result<String, TorrentInaccessibleError> {
         let torrent = self.get_data().await?;
-        Ok(torrent.info.name)
+        Ok(torrent.get_info_name())
     }
 }
 

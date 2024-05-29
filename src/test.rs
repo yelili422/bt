@@ -29,7 +29,7 @@ pub fn gen_torrent_with_custom_filename(filename: &str) -> Torrent {
 pub async fn get_dummy_torrent() -> TorrentMeta {
     let dot_torrent =
         std::fs::read("tests/dataset/872ab5abd72ea223d2a2e36688cc96f83bb71d42.torrent").unwrap();
-    let torrent: Torrent = serde_bencode::from_bytes(&dot_torrent).unwrap();
+    let torrent = Torrent::from_bytes(&dot_torrent).unwrap();
 
     let url = "https://example.com/dummy-1.torrent";
     update_torrent_cache(url, &torrent).await;
