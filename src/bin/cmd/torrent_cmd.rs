@@ -10,8 +10,8 @@ pub(crate) struct TorrentSubcommand {
 
 #[derive(Subcommand, Debug)]
 enum TorrentCommands {
-    /// Compute the torrent hash.
-    Hash {
+    /// Compute the torrent id.
+    ID {
         /// The torrent file path.
         file: Option<String>,
     },
@@ -19,10 +19,10 @@ enum TorrentCommands {
 
 pub async fn execute(subcommand: TorrentSubcommand) -> anyhow::Result<()> {
     match subcommand.command {
-        TorrentCommands::Hash { file } => {
+        TorrentCommands::ID { file } => {
             let dot_torrent = std::fs::read(file.unwrap()).unwrap();
             let torrent = Torrent::from_bytes(&dot_torrent).unwrap();
-            let info_hash = torrent.info_hash();
+            let info_hash = torrent.torrent_id();
             println!("{}", hex::encode(info_hash));
         }
     }

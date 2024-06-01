@@ -438,6 +438,7 @@ dependencies = [
  "serde_bencode",
  "serde_json",
  "sha1",
+ "sha2",
  "sqlx",
  "strum",
  "strum_macros",

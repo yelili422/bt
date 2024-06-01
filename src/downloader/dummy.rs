@@ -21,7 +21,7 @@ impl Downloader for DummyDownloader {
     async fn download(&self, torrent: &TorrentMeta) -> Result<(), DownloaderError> {
         let category = torrent.category.as_ref().unwrap();
         let name = torrent.get_name().await.unwrap();
-        let hash = torrent.get_info_hash().await.unwrap();
+        let hash = torrent.get_torrent_id().await.unwrap();
 
         let path = format!("./data/dummy/downloads/{}/{}", category, name);
         let path = Path::new(&path);

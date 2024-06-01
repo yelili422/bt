@@ -34,7 +34,8 @@ impl Torrent {
         }
     }
 
-    pub fn info_hash(&self) -> [u8; 20] {
+    /// TorrentID (infohashv1 for v1 torrents, truncated infohashv2 for v2/hybrid torrents
+    pub fn torrent_id(&self) -> [u8; 20] {
         match self.get_info() {
             Some(BencodeValue::Dict(info)) => {
                 let info_formatted: HashMap<String, BencodeValue> = info
@@ -45,9 +46,21 @@ impl Torrent {
                 let info_encoded =
                     serde_bencode::to_bytes(&info_formatted).expect("failed to encode info");
 
-                let mut hasher = sha1::Sha1::new();
-                hasher.update(&info_encoded);
-                hasher.finalize().try_into().expect("hash length is not 20")
+                match info_formatted.get("meta version") {
+                    None => {
+                        let mut hasher = sha1::Sha1::new();
+                        hasher.update(&info_encoded);
+                        hasher.finalize().try_into().unwrap()
+                    }
+                    Some(BencodeValue::Int(2)) => {
+                        // It's v2 version
+                        let mut hasher = sha2::Sha256::new();
+                        hasher.update(&info_encoded);
+                        let hash: [u8; 32] = hasher.finalize().try_into().unwrap();
+                        hash[..20].try_into().unwrap()
+                    }
+                    _ => panic!("unsupported meta version"),
+                }
             }
             _ => unreachable!(),
         }
@@ -74,7 +87,7 @@ mod tests {
             std::fs::read("tests/dataset/872ab5abd72ea223d2a2e36688cc96f83bb71d42.torrent")
                 .unwrap();
         let torrent = Torrent::from_bytes(&dot_torrent).unwrap();
-        let info_hash = torrent.info_hash();
+        let info_hash = torrent.torrent_id();
 
         assert_eq!(hex::encode(info_hash), "872ab5abd72ea223d2a2e36688cc96f83bb71d42");
     }
@@ -85,7 +98,7 @@ mod tests {
             std::fs::read("tests/dataset/0525f17ac5a68d0198812597747579be78053112.torrent")
                 .unwrap();
         let torrent = Torrent::from_bytes(&dot_torrent).unwrap();
-        let info_hash = torrent.info_hash();
+        let info_hash = torrent.torrent_id();
 
         assert_eq!(hex::encode(info_hash), "0525f17ac5a68d0198812597747579be78053112");
     }

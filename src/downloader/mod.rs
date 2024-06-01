@@ -72,9 +72,9 @@ impl TorrentMeta {
         }
     }
 
-    pub async fn get_info_hash(&self) -> Result<String, TorrentInaccessibleError> {
+    pub async fn get_torrent_id(&self) -> Result<String, TorrentInaccessibleError> {
         let torrent = self.get_data().await?;
-        Ok(hex::encode(&torrent.info_hash()))
+        Ok(hex::encode(&torrent.torrent_id()))
     }
 
     pub async fn get_name(&self) -> Result<String, TorrentInaccessibleError> {
@@ -146,7 +146,7 @@ pub async fn download_with_state(
     torrent_meta: &TorrentMeta,
     bangumi_info: &BangumiInfo,
 ) -> anyhow::Result<()> {
-    let info_hash = torrent_meta.get_info_hash().await?;
+    let info_hash = torrent_meta.get_torrent_id().await?;
 
     let mut tx = tx_begin().await?;
 
@@ -311,7 +311,7 @@ mod tests {
         .await
         .unwrap();
 
-        let torrent_hash = torrent.get_info_hash().await.unwrap();
+        let torrent_hash = torrent.get_torrent_id().await.unwrap();
         assert_eq!(is_renamed(&torrent_hash).await.unwrap(), false);
 
         set_task_renamed(&torrent_hash).await.unwrap();
