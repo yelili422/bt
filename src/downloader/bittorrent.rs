@@ -95,11 +95,11 @@ mod tests {
     #[test]
     fn test_info_hash_v2() {
         let dot_torrent =
-            std::fs::read("tests/dataset/0525f17ac5a68d0198812597747579be78053112.torrent")
+            std::fs::read("tests/dataset/bb95e3795d653b274dbc32e1c48d2d3543417156.torrent")
                 .unwrap();
         let torrent = Torrent::from_bytes(&dot_torrent).unwrap();
         let info_hash = torrent.torrent_id();
 
-        assert_eq!(hex::encode(info_hash), "0525f17ac5a68d0198812597747579be78053112");
+        assert_eq!(hex::encode(info_hash), "03143c5aaf5545b9e54d221a3ef3f1671c51a9ef");
     }
 }

@@ -201,7 +201,9 @@ mod tests {
     #[test]
     fn test_rename_dir() {
         let src_dir = Path::new("/tmp/迷宫饭");
-        std::fs::create_dir(src_dir).unwrap();
+        if !src_dir.exists() {
+            std::fs::create_dir(src_dir).unwrap();
+        }
 
         std::fs::write(&src_dir.join("迷宫饭[1].mkv"), "mkv_content").unwrap();
         std::fs::write(&src_dir.join("迷宫饭[1].ass"), "ass_content").unwrap();
