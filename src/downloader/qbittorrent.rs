@@ -1,48 +1,33 @@
+use std::str::FromStr;
+
 use super::{Downloader, DownloaderError, DownloadingTorrent, TaskStatus, TorrentMeta};
 use async_trait::async_trait;
-use qbittorrent::data::State;
+use qbit_rs::model::{Credential, State};
 
 pub struct QBittorrentDownloader {
-    username: String,
-    password: String,
-    address: String,
+    api: qbit_rs::Qbit,
 }
 
 #[allow(unused)]
 impl QBittorrentDownloader {
     pub fn new(username: &str, password: &str, address: &str) -> Self {
-        Self {
-            username: username.to_string(),
-            password: password.to_string(),
-            address: address.to_string(),
-        }
-    }
+        let credential = Credential::new(username, password);
+        let api = qbit_rs::Qbit::new(address, credential);
 
-    async fn get_session(&self) -> Result<qbittorrent::Api, DownloaderError> {
-        // TODO: Reuse the session if it's still valid
-        Ok(self.login().await?)
-    }
-
-    async fn login(&self) -> Result<qbittorrent::Api, DownloaderError> {
-        let api = qbittorrent::Api::new(&self.username, &self.password, &self.address)
-            .await
-            .or_else(|err| Err(DownloaderError::InvalidAuthentication(err.to_string())))?;
-
-        Ok(api)
+        Self { api }
     }
 
     async fn application_version(&self) -> Result<String, DownloaderError> {
-        self.get_session()
-            .await?
-            .application_version()
+        self.api
+            .get_version()
             .await
             .map_err(|err| DownloaderError::ClientError(err.to_string()))
     }
 
-    async fn get_torrent_list(&self) -> Result<Vec<qbittorrent::data::Torrent>, DownloaderError> {
-        self.get_session()
-            .await?
-            .get_torrent_list()
+    async fn get_torrent_list(&self) -> Result<Vec<qbit_rs::model::Torrent>, DownloaderError> {
+        let params = qbit_rs::model::GetTorrentListArg::default();
+        self.api
+            .get_torrent_list(params)
             .await
             .map_err(|err| DownloaderError::ClientError(err.to_string()))
     }
@@ -51,8 +36,11 @@ impl QBittorrentDownloader {
 #[async_trait]
 impl Downloader for QBittorrentDownloader {
     async fn download(&self, torrent: &TorrentMeta) -> Result<(), DownloaderError> {
-        let qtorrent = qbittorrent::queries::TorrentDownloadBuilder::default()
-            .urls(torrent.url.clone())
+        let urls = qbit_rs::model::TorrentSource::Urls {
+            urls: qbit_rs::model::Sep::from_str(&torrent.url).unwrap(),
+        };
+        let qtorrent = qbit_rs::model::AddTorrentArg::builder()
+            .source(urls)
             .savepath(
                 torrent
                     .save_path
@@ -60,12 +48,10 @@ impl Downloader for QBittorrentDownloader {
                     .unwrap_or(String::from("/downloads")),
             )
             .category(torrent.category.clone().unwrap_or(String::from("Bangumi")))
-            .build()
-            .map_err(|err| DownloaderError::ClientError(err.to_string()))?;
+            .build();
 
-        self.get_session()
-            .await?
-            .add_new_torrent(&qtorrent)
+        self.api
+            .add_torrent(qtorrent)
             .await
             .map_err(|err| DownloaderError::ClientError(err.to_string()))
     }
@@ -76,8 +62,7 @@ impl Downloader for QBittorrentDownloader {
             .await?
             .iter()
             .map(|t| {
-                let torrent_info_hash = t.hash().to_string();
-                let status = match t.state() {
+                let status = match t.state.clone().unwrap_or(State::Unknown) {
                     State::PausedDL => TaskStatus::Pause,
                     State::Uploading | State::PausedUP | State::QueuedUP | State::StalledUP => {
                         TaskStatus::Completed
@@ -89,7 +74,7 @@ impl Downloader for QBittorrentDownloader {
                     | State::QueuedDL
                     | State::StalledDL
                     | State::CheckingDL
-                    | State::ForceDL
+                    | State::ForcedDL
                     | State::CheckingResumeData
                     | State::MetaDL => TaskStatus::Downloading,
                     State::Error | State::MissingFiles | State::Unknown | State::Moving => {
@@ -98,10 +83,10 @@ impl Downloader for QBittorrentDownloader {
                 };
 
                 DownloadingTorrent {
-                    hash: torrent_info_hash,
+                    hash: t.hash.clone().unwrap_or_default(),
                     status,
-                    save_path: t.save_path().to_string(),
-                    name: t.name().to_string(),
+                    save_path: t.save_path.clone().unwrap_or_default(),
+                    name: t.name.clone().unwrap_or_default(),
                 }
             })
             .collect();
