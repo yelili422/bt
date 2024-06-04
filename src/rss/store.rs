@@ -46,8 +46,8 @@ pub async fn insert_rss(
     let filters = serialize_filters(&rss.filters);
     let id = query!(
         r#"
-INSERT INTO main.rss (url, title, rss_type, enabled, season, filters, description)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+INSERT INTO main.rss (url, title, rss_type, enabled, season, filters, description, category)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
         "#,
         rss.url,
         rss.title,
@@ -56,6 +56,7 @@ VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
         season,
         filters,
         rss.description,
+        rss.category,
     )
     .execute(&mut **tx)
     .await?
@@ -86,7 +87,7 @@ pub async fn query_rss(
 ) -> Result<Vec<Rss>, sqlx::Error> {
     let recs = query!(
         r#"
-SELECT id, url, title, rss_type, enabled, season, filters, description
+SELECT id, url, title, rss_type, enabled, season, filters, description, category
 FROM main.rss
 ORDER BY title ASC, season ASC
         "#,
@@ -105,6 +106,7 @@ ORDER BY title ASC, season ASC
             season: rec.season.map(|s| s as u64),
             filters: deserialize_filters(&rec.filters),
             description: rec.description,
+            category: rec.category,
         })
         .collect())
 }
@@ -120,8 +122,8 @@ pub async fn update_rss(
     query!(
         r#"
 UPDATE main.rss
-SET url = ?1, title = ?2, rss_type = ?3, enabled = ?4, season = ?5, filters = ?6, description = ?7
-WHERE id = ?8
+SET url = ?1, title = ?2, rss_type = ?3, enabled = ?4, season = ?5, filters = ?6, description = ?7, category = ?8
+WHERE id = ?9
         "#,
         rss.url,
         rss.title,
@@ -130,6 +132,7 @@ WHERE id = ?8
         season,
         filters,
         rss.description,
+        rss.category,
         id,
     )
     .execute(&mut **tx)

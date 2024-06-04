@@ -33,6 +33,8 @@ pub struct Rss {
     pub filters: Option<RssFilterChain>,
     #[builder(default)]
     pub description: Option<String>,
+    #[builder(default)]
+    pub category: Option<String>,
 }
 
 #[allow(unused)]
@@ -60,20 +62,41 @@ pub struct RssSubscriptionItem {
     pub fansub: String,
     pub media_info: String,
     pub torrent: TorrentMeta,
+    pub category: String,
 }
 
 impl From<&RssSubscriptionItem> for BangumiInfo {
     fn from(s: &RssSubscriptionItem) -> Self {
+        let display_name = format!("{}{}", s.fansub, s.media_info);
+
         BangumiInfo::builder()
             .show_name(s.title.clone())
-            .episode_name(Some(s.episode_title.clone()))
+            .episode_name({
+                if s.episode_title.is_empty() {
+                    None
+                } else {
+                    Some(s.episode_title.clone())
+                }
+            })
             // Display name is necessary because some bangumies have multiple versions
             // from different platforms
             // When renaming the file, the display name is used as the file name to avoid conflicts
-            .display_name(Some(format!("{}{}", s.fansub, s.media_info)))
+            .display_name({
+                if display_name.is_empty() {
+                    None
+                } else {
+                    Some(display_name)
+                }
+            })
             .season(s.season)
             .episode(s.episode)
-            .category(None)
+            .category({
+                if s.category.is_empty() {
+                    None
+                } else {
+                    Some(s.category.clone())
+                }
+            })
             .build()
     }
 }
@@ -172,6 +195,7 @@ mod tests {
             episode: 18,
             fansub: "[喵萌奶茶屋&LoliHouse]".to_string(),
             media_info: "[WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]".to_string(),
+            category: "".to_string(),
             torrent: crate::downloader::TorrentMeta::builder()
                 .url("https://mikanani.me/Download/20240118/059724511d60173251b378b04709aceff92fffb5.torrent".to_string())
                 .content_len(Some(664923008u64))
@@ -181,7 +205,7 @@ mod tests {
 
         let bangumi_info: BangumiInfo = (&rss_item).into();
         assert_eq!(bangumi_info.show_name, "葬送的芙莉莲");
-        assert_eq!(bangumi_info.episode_name, Some(String::from("")));
+        assert_eq!(bangumi_info.episode_name, None);
         assert_eq!(
             bangumi_info.display_name,
             Some(String::from(

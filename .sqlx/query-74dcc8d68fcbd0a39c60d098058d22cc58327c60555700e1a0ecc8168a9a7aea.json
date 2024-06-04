@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\nINSERT INTO main.rss (url, title, rss_type, enabled, season, filters, description, category)\nVALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "74dcc8d68fcbd0a39c60d098058d22cc58327c60555700e1a0ecc8168a9a7aea"
+}

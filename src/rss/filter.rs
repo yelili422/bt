@@ -146,6 +146,7 @@ mod tests {
                 .pub_date(None)
                 .content_len(None)
                 .build(),
+            category: "".to_string(),
         }
     }
 

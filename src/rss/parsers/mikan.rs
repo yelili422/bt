@@ -74,6 +74,7 @@ fn parse_rss_item(item: &MikanRssItem) -> Result<RssSubscriptionItem, super::Par
                 .episode(episode)
                 .media_info(media_info)
                 .torrent(torrent)
+                .category("".to_string())
                 .build())
         }
         None => Err(super::ParsingError::UnrecognizedEpisode(format!(
@@ -238,9 +239,11 @@ impl RssParser for MikanParser {
                                 if let Some(rss_title) = &rss.title {
                                     rss_item.title = rss_title.to_string();
                                 }
-
                                 if let Some(rss_season) = rss.season {
                                     rss_item.season = rss_season;
+                                }
+                                if let Some(category) = &rss.category {
+                                    rss_item.category = category.to_string();
                                 }
                             }
                             rss_items.push(rss_item);
@@ -432,6 +435,7 @@ mod tests {
                     episode: 18,
                     fansub: "[喵萌奶茶屋&LoliHouse]".to_string(),
                     media_info: "[WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]".to_string(),
+                    category: "".to_string(),
                     torrent: TorrentMeta::builder()
                         .url("https://mikanani.me/Download/20240118/059724511d60173251b378b04709aceff92fffb5.torrent".to_string())
                         .content_len(Some(664923008u64))
@@ -446,6 +450,7 @@ mod tests {
                     episode: 17,
                     fansub: "[喵萌奶茶屋&LoliHouse]".to_string(),
                     media_info: "[WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]".to_string(),
+                    category: "".to_string(),
                     torrent: TorrentMeta::builder()
                         .url("https://mikanani.me/Download/20240111/872ab5abd72ea223d2a2e36688cc96f83bb71d42.torrent".to_string())
                         .content_len(Some(670857984u64))
@@ -476,6 +481,7 @@ mod tests {
                     episode: 10,
                     fansub: "[GJ.Y]".to_string(),
                     media_info: "(Baha 1920x1080 AVC AAC MP4)".to_string(),
+                    category: "".to_string(),
                     torrent: TorrentMeta::builder()
                         .url("https://mikanani.me/Download/20240306/65515bee0f9e64d00613e148afac9fbf26e13060.torrent".to_string())
                         .content_len(Some(449052672u64))
@@ -505,7 +511,8 @@ mod tests {
                 episode: 11,
                 fansub: "[GJ.Y]".to_string(),
                 media_info: "(Baha 1920x1080 AVC AAC MP4)".to_string(),
-                torrent: TorrentMeta::builder()
+                category: "".to_string(),
+                    torrent: TorrentMeta::builder()
                     .url("https://mikanani.me/Download/20240313/38b3ab86bc9046f12edca2a2408ac1e7161a8c94.torrent".to_string())
                     .content_len(Some(554654784u64))
                     .pub_date(Some("2024-03-13T23:31:32.102".to_string()))
@@ -519,7 +526,8 @@ mod tests {
                 episode: 10,
                 fansub: "[GJ.Y]".to_string(),
                 media_info: "(Baha 1920x1080 AVC AAC MP4)".to_string(),
-                torrent: TorrentMeta::builder()
+                category: "".to_string(),
+                    torrent: TorrentMeta::builder()
                     .url("https://mikanani.me/Download/20240313/d2e587e0e10d77fcebdc4552d0725e43e2fa2fe6.torrent".to_string())
                     .content_len(Some(654342912u64))
                     .pub_date(Some("2024-03-13T23:02:04.724".to_string()))
@@ -533,7 +541,8 @@ mod tests {
                 episode: 11,
                 fansub: "[GJ.Y]".to_string(),
                 media_info: "(CR 1920x1080 AVC AAC MKV)".to_string(),
-                torrent: TorrentMeta::builder()
+                category: "".to_string(),
+                    torrent: TorrentMeta::builder()
                     .url("https://mikanani.me/Download/20240313/ef56a70e19199829a0280cc022ece291fa186316.torrent".to_string())
                     .content_len(Some(1471026304u64))
                     .pub_date(Some("2024-03-13T22:01:57.497".to_string()))
@@ -547,6 +556,7 @@ mod tests {
                 episode: 11,
                 fansub: "[GJ.Y]".to_string(),
                 media_info: "(B-Global 1920x1080 HEVC AAC MKV)".to_string(),
+                category: "".to_string(),
                 torrent: TorrentMeta::builder()
                     .url("https://mikanani.me/Download/20240313/49b9c8dd833629d39e09a4e9568bde6b6a71a01b.torrent".to_string())
                     .content_len(Some(251301728u64))
@@ -561,6 +571,7 @@ mod tests {
                 episode: 10,
                 fansub: "[GJ.Y]".to_string(),
                 media_info: "(CR 1920x1080 AVC AAC MKV)".to_string(),
+                category: "".to_string(),
                 torrent: TorrentMeta::builder()
                     .url("https://mikanani.me/Download/20240312/f6d8f1b7131135c2c8b295aca18c64cb6405e2aa.torrent".to_string())
                     .content_len(Some(1471026304u64))
@@ -575,6 +586,7 @@ mod tests {
                 episode: 22,
                 fansub: "[喵萌奶茶屋&LoliHouse]".to_string(),
                 media_info: "[WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]".to_string(),
+                category: "".to_string(),
                 torrent: TorrentMeta::builder()
                     .url("https://mikanani.me/Download/20240310/da075c8a8e0b9f71e130b978fb94e4def0745b30.torrent".to_string())
                     .content_len(Some(286858944u64))
@@ -589,6 +601,7 @@ mod tests {
                 episode: 9,
                 fansub: "[GJ.Y]".to_string(),
                 media_info: "(CR 1920x1080 AVC AAC MKV)".to_string(),
+                category: "".to_string(),
                 torrent: TorrentMeta::builder()
                     .url("https://mikanani.me/Download/20240310/6f9bb9e56663194eb68a0811890751d1e66f6fbd.torrent".to_string())
                     .content_len(Some(1471026304u64))

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\nUPDATE main.rss\nSET url = ?1, title = ?2, rss_type = ?3, enabled = ?4, season = ?5, filters = ?6, description = ?7, category = ?8\nWHERE id = ?9\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "917699bdf83d191feb7e6899a84e4139d77d46a2c5d18bc950cce6cc9ef8e51e"
+}
