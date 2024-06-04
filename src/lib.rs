@@ -45,7 +45,7 @@ pub async fn download_rss_feeds(downloader: Arc<Mutex<Box<dyn Downloader>>>) -> 
     let rss_list = rss::list_rss().await.unwrap_or_default();
 
     for rss in rss_list {
-        if rss.enabled.unwrap_or(false) {
+        if !rss.enabled.unwrap_or(false) {
             debug!("[rss] Skip disabled RSS: ({})", rss.url);
             continue;
         }
