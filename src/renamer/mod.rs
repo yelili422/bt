@@ -1,15 +1,17 @@
-use derive_builder::Builder;
 use log::{debug, info};
 use std::path::{Path, PathBuf};
+use typed_builder::TypedBuilder;
 
-#[derive(Default, Builder, Debug, PartialEq, Eq)]
-#[builder(setter(into), default)]
+#[derive(Default, TypedBuilder, Debug, PartialEq, Eq)]
 pub struct BangumiInfo {
     pub show_name: String,
+    #[builder(default)]
     pub episode_name: Option<String>,
+    #[builder(default)]
     pub display_name: Option<String>,
     pub season: u64,
     pub episode: u64,
+    #[builder(default)]
     pub category: Option<String>,
 }
 

@@ -1,11 +1,11 @@
 use chrono::{DateTime, Local};
-use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumString};
+use typed_builder::TypedBuilder;
 
-#[derive(Debug, Builder)]
-#[builder(setter(into))]
+#[derive(Debug, TypedBuilder)]
 pub struct DownloadTask {
+    #[builder(default)]
     pub id: Option<i64>,
     pub torrent_hash: String,
     pub torrent_url: Option<String>,

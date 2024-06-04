@@ -51,19 +51,18 @@ impl Notifier for Telegram {
 mod tests {
     use super::*;
     use crate::notification::Notification;
-    use crate::renamer::BangumiInfoBuilder;
+    use crate::renamer::BangumiInfo;
 
     #[ignore]
     #[tokio::test]
     async fn test_send() {
         _ = dotenvy::from_path(".env");
 
-        let bangumi_info = BangumiInfoBuilder::default()
-            .show_name("test")
+        let bangumi_info = BangumiInfo::builder()
+            .show_name("test".to_string())
             .season(2u64)
             .episode(3u64)
-            .build()
-            .unwrap();
+            .build();
 
         let telegram = Telegram::from_env();
         telegram

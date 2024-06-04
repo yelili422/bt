@@ -90,6 +90,8 @@ impl RssFilterChain {
 
 #[cfg(test)]
 mod tests {
+    use crate::downloader::TorrentMeta;
+
     use super::*;
 
     #[test]
@@ -122,7 +124,7 @@ mod tests {
     }
 
     async fn gen_rss_item_with_filename(filename: &str) -> RssSubscriptionItem {
-        use crate::downloader::{update_torrent_cache, TorrentMetaBuilder};
+        use crate::downloader::update_torrent_cache;
         use crate::test::gen_torrent_with_custom_filename;
 
         let url = &format!("https://example.com/example.torrent?filename={}", filename);
@@ -137,10 +139,13 @@ mod tests {
             episode: 1,
             fansub: "".to_string(),
             media_info: "".to_string(),
-            torrent: TorrentMetaBuilder::default()
+            torrent: TorrentMeta::builder()
                 .url(url.to_string())
-                .build()
-                .unwrap(),
+                .category(None)
+                .save_path(None)
+                .pub_date(None)
+                .content_len(None)
+                .build(),
         }
     }
 

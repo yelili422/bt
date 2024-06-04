@@ -5,7 +5,6 @@ mod store;
 mod task;
 
 use async_trait::async_trait;
-use derive_builder::Builder;
 use log::{debug, error};
 use lru::LruCache;
 use once_cell::sync::{Lazy, OnceCell};
@@ -17,6 +16,7 @@ use std::sync::Arc;
 use strum_macros::EnumString;
 use thiserror::Error;
 use tokio::sync::Mutex;
+use typed_builder::TypedBuilder;
 
 use crate::renamer::BangumiInfo;
 use crate::tx_begin;
@@ -26,14 +26,17 @@ pub use qbittorrent::QBittorrentDownloader;
 pub use task::*;
 
 /// The metadata of a torrent file
-#[derive(Debug, Clone, PartialEq, Eq, Builder, Default, Serialize, Deserialize)]
-#[builder(setter(into, strip_option), default)]
+#[derive(Debug, Clone, PartialEq, Eq, TypedBuilder, Default, Serialize, Deserialize)]
 pub struct TorrentMeta {
     /// The url of the torrent file
     pub url: String,
+    #[builder(default)]
     content_len: Option<u64>,
+    #[builder(default)]
     pub_date: Option<String>,
+    #[builder(default)]
     save_path: Option<String>,
+    #[builder(default)]
     category: Option<String>,
 }
 
@@ -125,6 +128,13 @@ pub trait Downloader: Send + Sync {
     async fn download(&self, torrent: &TorrentMeta) -> Result<(), DownloaderError>;
 
     async fn get_download_list(&self) -> Result<Vec<DownloadingTorrent>, DownloaderError>;
+
+    async fn rename_file(
+        &self,
+        torrent: &str,
+        old_path: &Path,
+        new_path: &Path,
+    ) -> Result<(), DownloaderError>;
 }
 
 #[derive(Debug, Clone, EnumString)]
@@ -152,15 +162,14 @@ pub async fn download_with_state(
 
     let created = store::add_task(
         &mut tx,
-        &DownloadTaskBuilder::default()
+        &DownloadTask::builder()
             .id(None)
             .torrent_hash(info_hash)
             .torrent_url(Some(torrent_meta.url.to_string()))
             .status(TaskStatus::Downloading)
             .start_time(chrono::Local::now())
             .renamed(false)
-            .build()
-            .unwrap(),
+            .build(),
         bangumi_info,
     )
     .await?;
@@ -288,7 +297,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_renamed() {
-        use crate::renamer::BangumiInfoBuilder;
         use crate::{init, test::get_dummy_torrent};
 
         init().await;
@@ -298,15 +306,14 @@ mod tests {
         download_with_state(
             downloader.clone(),
             &torrent,
-            &BangumiInfoBuilder::default()
+            &BangumiInfo::builder()
                 .show_name("dummy".to_string())
-                .episode_name("".to_string())
-                .display_name("".to_string())
+                .episode_name(Some("".to_string()))
+                .display_name(Some("".to_string()))
                 .season(1u64)
                 .episode(1u64)
                 .category(None)
-                .build()
-                .unwrap(),
+                .build(),
         )
         .await
         .unwrap();

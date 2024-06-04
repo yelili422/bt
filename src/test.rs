@@ -1,7 +1,7 @@
 use actix_web::dev::{Service, ServiceResponse};
 use actix_web::test;
 
-use crate::downloader::{update_torrent_cache, Torrent, TorrentMeta, TorrentMetaBuilder};
+use crate::downloader::{update_torrent_cache, Torrent, TorrentMeta};
 use crate::init;
 
 #[allow(unused)]
@@ -34,9 +34,8 @@ pub async fn get_dummy_torrent() -> TorrentMeta {
     let url = "https://example.com/dummy-1.torrent";
     update_torrent_cache(url, &torrent).await;
 
-    TorrentMetaBuilder::default()
+    TorrentMeta::builder()
         .url(url.to_string())
-        .category("test_category".to_string())
+        .category(Some("test_category".to_string()))
         .build()
-        .unwrap()
 }

@@ -45,14 +45,15 @@ pub async fn download_rss_feeds(downloader: Arc<Mutex<Box<dyn Downloader>>>) -> 
     let rss_list = rss::list_rss().await.unwrap_or_default();
 
     for rss in rss_list {
-        if rss.enabled == None || rss.enabled == Some(false) {
+        if rss.enabled.unwrap_or(false) {
             debug!("[rss] Skip disabled RSS: ({})", rss.url);
             continue;
         }
         match parsers::parse(&rss).await {
             Ok(feeds) => {
                 for feed in &feeds.items {
-                    // If the torrent already in the download list, skip downloading
+                    // Skip downloading if the torrent info already in the database .
+                    // Because we don't need to download again if this task was renamed from the downloader.
                     if downloader::is_task_exist(&feed.torrent.url).await? {
                         debug!("[parser] Task already in downloading list: {:?}", feed);
                         continue;
@@ -119,16 +120,17 @@ pub async fn check_downloading_tasks(
                 _ => {}
             };
 
-            let mut src_path = PathBuf::from(task.save_path).join(task.name);
+            let src_path = PathBuf::from(task.save_path).join(task.name);
+            let mut remapped_src_path = src_path.clone();
 
             // replace path if `download_path_mapping` is set
             if let Some(path_map) = download_path_mapping.as_ref() {
-                src_path = renamer::replace_path(src_path, path_map);
+                remapped_src_path = renamer::replace_path(src_path.clone(), path_map);
             }
 
             match downloader::get_bangumi_info(&task.hash).await? {
                 Some(info) => {
-                    match renamer::rename(&info, &src_path, dst_folder) {
+                    match renamer::rename(&info, &remapped_src_path, dst_folder) {
                         Ok(()) => {
                             downloader::set_task_renamed(&task.hash).await?;
 

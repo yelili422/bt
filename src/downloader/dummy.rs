@@ -48,6 +48,15 @@ impl Downloader for DummyDownloader {
         let download_list = self.download_list.lock().await;
         Ok(download_list.clone())
     }
+
+    async fn rename_file(
+        &self,
+        _torrent: &str,
+        _old_path: &std::path::Path,
+        _new_path: &std::path::Path,
+    ) -> Result<(), DownloaderError> {
+        unimplemented!()
+    }
 }
 
 #[cfg(test)]

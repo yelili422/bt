@@ -14,10 +14,10 @@ name = "cmd"
 name = "web_api"
 
 [dependencies]
-derive_builder = "0.20.0"
+typed-builder = "0.18.2"
 qbit-rs = "0.4.2"
 regex = "1.10.3"
-reqwest = "0.11.23"
+reqwest = "0.12.4"
 serde = { version = "1.0.195", features = ["derive", "std"] }
 serde_json = "1.0.114"
 serde-xml-rs = "0.6.0"

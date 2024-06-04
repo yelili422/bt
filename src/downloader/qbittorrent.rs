@@ -93,6 +93,15 @@ impl Downloader for QBittorrentDownloader {
 
         Ok(download_tasks)
     }
+
+    async fn rename_file(
+        &self,
+        _torrent: &str,
+        _old_path: &std::path::Path,
+        _new_path: &std::path::Path,
+    ) -> Result<(), DownloaderError> {
+        unimplemented!()
+    }
 }
 
 #[cfg(test)]
@@ -121,14 +130,13 @@ mod tests {
     #[tokio::test]
     async fn download() {
         let downloader = get_downloader().unwrap();
-        let torrent = crate::downloader::TorrentMetaBuilder::default()
-            .url("https://mikanani.me/Download/20240111/872ab5abd72ea223d2a2e36688cc96f83bb71d42.torrent")
-            .content_len(1024u64)
-            .pub_date("2021-01-01")
-            .save_path("/downloads")
-            .category("Bangumi")
-            .build()
-            .unwrap();
+        let torrent = crate::downloader::TorrentMeta::builder()
+            .url("https://mikanani.me/Download/20240111/872ab5abd72ea223d2a2e36688cc96f83bb71d42.torrent".to_string())
+            .content_len(Some(1024u64))
+            .pub_date(Some("2021-01-01".to_string()))
+            .save_path(Some("/downloads".to_string()))
+            .category(Some("Bangumi".to_string()))
+            .build();
 
         downloader.download(&torrent).await.unwrap();
 

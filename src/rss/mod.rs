@@ -1,10 +1,10 @@
-use derive_builder::Builder;
 use log::info;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumString};
+use typed_builder::TypedBuilder;
 
 use crate::downloader::TorrentMeta;
-use crate::renamer::{BangumiInfo, BangumiInfoBuilder};
+use crate::renamer::BangumiInfo;
 use crate::rss::filter::RssFilterChain;
 use crate::tx_begin;
 
@@ -12,15 +12,19 @@ mod filter;
 pub mod parsers;
 mod store;
 
-#[derive(Debug, Clone, Builder, Serialize, Deserialize)]
-#[builder(setter(into))]
+#[derive(Debug, Clone, TypedBuilder, Serialize, Deserialize)]
 pub struct Rss {
+    /// The primary key of the rss
     #[builder(default)]
     pub id: Option<i64>,
+    /// The url of the rss
     pub url: String,
+    /// The title of the show
     #[builder(default)]
     pub title: Option<String>,
+    /// The type of the rss
     pub rss_type: RssType,
+    /// The season of the show
     #[builder(default)]
     pub season: Option<u64>,
     #[builder(default)]
@@ -46,8 +50,7 @@ pub struct RssSubscription {
     pub items: Vec<RssSubscriptionItem>,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Builder)]
-#[builder(setter(into))]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, TypedBuilder)]
 pub struct RssSubscriptionItem {
     pub url: String,
     pub title: String,
@@ -61,18 +64,17 @@ pub struct RssSubscriptionItem {
 
 impl From<&RssSubscriptionItem> for BangumiInfo {
     fn from(s: &RssSubscriptionItem) -> Self {
-        BangumiInfoBuilder::default()
+        BangumiInfo::builder()
             .show_name(s.title.clone())
-            .episode_name(s.episode_title.clone())
+            .episode_name(Some(s.episode_title.clone()))
             // Display name is necessary because some bangumies have multiple versions
             // from different platforms
             // When renaming the file, the display name is used as the file name to avoid conflicts
-            .display_name(format!("{}{}", s.fansub, s.media_info))
+            .display_name(Some(format!("{}{}", s.fansub, s.media_info)))
             .season(s.season)
             .episode(s.episode)
             .category(None)
             .build()
-            .unwrap()
     }
 }
 
@@ -124,15 +126,16 @@ mod tests {
         let rss_list = list_rss().await.unwrap();
         assert_eq!(rss_list.len(), 0);
 
-        let mut rss = RssBuilder::default()
-            .id(None)
+        let mut rss = Rss::builder()
             .title(Some("Sousou no Frieren".to_string()))
-            .url("https://mikanani.me/Home/Episode/059724511d60173251b378b04709aceff92fffb5")
+            .url(
+                "https://mikanani.me/Home/Episode/059724511d60173251b378b04709aceff92fffb5"
+                    .to_string(),
+            )
             .rss_type(RssType::Mikan)
-            .season(1)
-            .enabled(true)
-            .build()
-            .unwrap();
+            .season(Some(1))
+            .enabled(Some(true))
+            .build();
 
         let id = add_rss(&rss).await.unwrap();
         let rss_list = list_rss().await.unwrap();
@@ -169,12 +172,11 @@ mod tests {
             episode: 18,
             fansub: "[喵萌奶茶屋&LoliHouse]".to_string(),
             media_info: "[WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]".to_string(),
-            torrent: crate::downloader::TorrentMetaBuilder::default()
-                .url("https://mikanani.me/Download/20240118/059724511d60173251b378b04709aceff92fffb5.torrent")
-                .content_len(664923008u64)
-                .pub_date("2024-01-18T06:57:43.93")
-                .build()
-                .unwrap(),
+            torrent: crate::downloader::TorrentMeta::builder()
+                .url("https://mikanani.me/Download/20240118/059724511d60173251b378b04709aceff92fffb5.torrent".to_string())
+                .content_len(Some(664923008u64))
+                .pub_date(Some("2024-01-18T06:57:43.93".to_string()))
+                .build(),
         };
 
         let bangumi_info: BangumiInfo = (&rss_item).into();
