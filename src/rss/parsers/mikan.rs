@@ -117,19 +117,19 @@ fn parse_bangumi_title_and_season(content: &str) -> (String, u64) {
 }
 
 // e.g. [喵萌奶茶屋&amp;LoliHouse] 葬送的芙莉莲 / Sousou no Frieren - 17 [WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]
-const PATTERN_REGULAR_TITLE: &str = r"^
+const PATTERN_REGULAR_TITLE: &str = r"^(?x) # enable extend mode
 (?<fansub>\[.*?\])*
 \s*
 (?<title>.*?)
 \s*\-\s*
-(?<episode>\d*)
+(?<episode>\d*)(?:v\d)?
 \s*
 (?<media>[\[\(].*[\]\)])*
 $";
 
 #[inline]
 fn split_by_regular_format(title: &str) -> Option<Captures> {
-    let pattern = PATTERN_REGULAR_TITLE.replace("\n", "");
+    let pattern = PATTERN_REGULAR_TITLE;
     let re = Regex::new(&pattern).unwrap();
     return re.captures(title);
 }
@@ -343,6 +343,7 @@ mod tests {
             "[钉铛字幕组]哆啦A梦新番|Doraemon[521][2018.05.18][1080P][附最新的动画组的特效]",
             "【清蓝字幕组】新哆啦A梦 - New Doraemon [437][GB][720P]",
             "[云歌字幕组&萌樱字幕组][4月新番][无名记忆 Unnamed Memory][01][HEVC][x265 10bit][1080p][简体中文][先行版]",
+            "[喵萌奶茶屋&LoliHouse] 迷宫饭 / Dungeon Meshi / Delicious in Dungeon - 19v2 [WebRip 1080p HEVC-10bit AAC EAC3][简繁日内封字幕]",
         ];
         let result = vec![
             (
@@ -394,20 +395,17 @@ mod tests {
                 1,
                 "[HEVC][x265 10bit][1080p][简体中文][先行版]".to_string(),
             ),
+            (
+                "[喵萌奶茶屋&LoliHouse]".to_string(),
+                "迷宫饭".to_string(),
+                1,
+                19,
+                "[WebRip 1080p HEVC-10bit AAC EAC3][简繁日内封字幕]".to_string(),
+            ),
         ];
 
         for (title, expect) in titles.iter().zip(result.iter()) {
             assert_eq!(parse_rss_item_info(title).unwrap(), *expect);
-        }
-    }
-
-    #[test]
-    fn test_parse_rss_item_failed() {
-        let titles = vec![
-            "[喵萌奶茶屋&LoliHouse] 迷宫饭 / Dungeon Meshi / Delicious in Dungeon - 04v2 [WebRip 1080p HEVC-10bit AAC EAC3][简繁日内封字幕]",
-        ];
-        for title in titles.iter() {
-            assert!(parse_rss_item_info(title).is_none());
         }
     }
 
