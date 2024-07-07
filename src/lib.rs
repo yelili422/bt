@@ -90,21 +90,21 @@ pub async fn download_rss_feeds(downloader: Arc<Mutex<Box<dyn Downloader>>>) -> 
 
 pub async fn checking_download_task(
     downloader: Arc<Mutex<Box<dyn Downloader>>>,
-    finished_ch: mpsc::Sender<DownloadingTorrent>,
+    finished_ch: &mpsc::Sender<DownloadingTorrent>,
 ) -> BTResult<()> {
     let downloader_lock = downloader.lock().await;
     let download_list = downloader_lock.get_download_list().await?;
     downloader::update_task_status(&download_list).await?;
     for task in download_list {
         if task.status == downloader::TaskStatus::Completed {
-            finished_ch.send(task).await.unwrap();
+            finished_ch.send(task).await.expect("receiver dropped")
         }
     }
     Ok(())
 }
 
 pub async fn rename_downloaded_files(
-    mut finished_ch: mpsc::Receiver<DownloadingTorrent>,
+    finished_ch: &mut mpsc::Receiver<DownloadingTorrent>,
     archived_path: String,
     download_path_mapping: Option<String>,
     notifier: Option<Arc<Mutex<Box<dyn notification::Notifier>>>>,

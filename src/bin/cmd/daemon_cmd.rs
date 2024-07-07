@@ -57,11 +57,11 @@ pub async fn execute(subcommand: DaemonSubcommand) -> anyhow::Result<()> {
                 }
             });
 
-            let (rename_tx, rename_rx) = mpsc::channel(64);
+            let (rename_tx, mut rename_rx) = mpsc::channel(64);
             let downloader_rename = downloader.clone();
             tokio::spawn(async move {
                 loop {
-                    checking_download_task(downloader_rename.clone(), rename_tx.clone())
+                    checking_download_task(downloader_rename.clone(), &rename_tx)
                         .await
                         .unwrap_or_else(|e| {
                             error!("[cmd] Failed to process downloading tasks: {:?}", e);
@@ -72,12 +72,16 @@ pub async fn execute(subcommand: DaemonSubcommand) -> anyhow::Result<()> {
             });
 
             tokio::spawn(async move {
-                rename_downloaded_files(
-                    rename_rx,
+                if let Err(err) = rename_downloaded_files(
+                    &mut rename_rx,
                     archived_path,
                     downloading_path_map,
                     notifier,
                 )
+                .await
+                {
+                    panic!("[cmd] Failed to rename downloaded files: {:?}", err);
+                }
             });
 
             tokio::signal::ctrl_c().await?;
