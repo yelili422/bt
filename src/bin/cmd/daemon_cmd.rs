@@ -1,7 +1,8 @@
 use bt::downloader::get_downloader;
-use bt::{check_downloading_tasks, download_rss_feeds, notification};
+use bt::{checking_download_task, download_rss_feeds, notification, rename_downloaded_files};
 use clap::{Parser, Subcommand};
 use log::{debug, error};
+use tokio::sync::mpsc;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -56,21 +57,27 @@ pub async fn execute(subcommand: DaemonSubcommand) -> anyhow::Result<()> {
                 }
             });
 
+            let (rename_tx, rename_rx) = mpsc::channel(64);
             let downloader_rename = downloader.clone();
             tokio::spawn(async move {
                 loop {
-                    check_downloading_tasks(
-                        downloader_rename.clone(),
-                        archived_path.clone(),
-                        downloading_path_map.clone(),
-                        notifier.clone(),
-                    )
-                    .await
-                    .unwrap_or_else(|e| {
-                        error!("[cmd] Failed to process downloading tasks: {:?}", e);
-                    });
+                    checking_download_task(downloader_rename.clone(), rename_tx.clone())
+                        .await
+                        .unwrap_or_else(|e| {
+                            error!("[cmd] Failed to process downloading tasks: {:?}", e);
+                        });
+
                     tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
                 }
+            });
+
+            tokio::spawn(async move {
+                rename_downloaded_files(
+                    rename_rx,
+                    archived_path,
+                    downloading_path_map,
+                    notifier,
+                )
             });
 
             tokio::signal::ctrl_c().await?;

@@ -9,6 +9,8 @@ use log::info;
 
 pub use rss_api::*;
 
+use crate::{BTError, BTResult};
+
 pub async fn run() -> std::io::Result<()> {
     info!("[api] Starting web server...");
     HttpServer::new(|| setup_app())
@@ -27,10 +29,17 @@ pub(crate) fn setup_app() -> App<
     >,
 > {
     let rss_scope = web::scope("/rss")
-        .service(get_rss)
-        .service(add_rss)
-        .service(delete_rss)
-        .service(update_rss);
+        .service(web::resource("/preview").route(web::get().to(parse_rss)))
+        .service(
+            web::resource("")
+                .route(web::get().to(get_rss))
+                .route(web::post().to(add_rss)),
+        )
+        .service(
+            web::resource("/{id}")
+                .route(web::delete().to(delete_rss))
+                .route(web::put().to(update_rss)),
+        );
 
     App::new()
         .wrap(Logger::default())
@@ -38,20 +47,10 @@ pub(crate) fn setup_app() -> App<
         .service(rss_scope)
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum ApiError {
-    #[error("Internal Error: {0}")]
-    InternalError(#[from] anyhow::Error),
-
-    #[error("Database Error: {0}")]
-    DatabaseError(#[from] sqlx::Error),
-}
-
-impl ResponseError for ApiError {
+impl ResponseError for BTError {
     fn status_code(&self) -> StatusCode {
         match self {
-            ApiError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            ApiError::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -61,9 +60,7 @@ impl ResponseError for ApiError {
     }
 }
 
-type Result<T> = std::result::Result<T, ApiError>;
-
 #[get("/ping")]
-async fn ping() -> Result<impl Responder> {
+async fn ping() -> BTResult<impl Responder> {
     Ok(web::Json("pong"))
 }

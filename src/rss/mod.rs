@@ -6,7 +6,7 @@ use typed_builder::TypedBuilder;
 use crate::downloader::TorrentMeta;
 use crate::renamer::BangumiInfo;
 use crate::rss::filter::RssFilterChain;
-use crate::tx_begin;
+use crate::{tx_begin, DBError};
 
 mod filter;
 pub mod parsers;
@@ -101,14 +101,14 @@ impl From<&RssSubscriptionItem> for BangumiInfo {
     }
 }
 
-pub async fn list_rss() -> anyhow::Result<Vec<Rss>> {
+pub async fn list_rss() -> Result<Vec<Rss>, DBError> {
     let mut tx = tx_begin().await?;
     let rss_list = store::query_rss(&mut tx).await?;
     tx.rollback().await?;
     Ok(rss_list)
 }
 
-pub async fn add_rss(info: &Rss) -> anyhow::Result<i64> {
+pub async fn add_rss(info: &Rss) -> Result<i64, DBError> {
     let mut tx = tx_begin().await?;
 
     let id = match store::check_repeat_by_url(&mut tx, &info.url).await? {
@@ -123,14 +123,14 @@ pub async fn add_rss(info: &Rss) -> anyhow::Result<i64> {
     Ok(id)
 }
 
-pub async fn delete_rss(id: i64) -> anyhow::Result<()> {
+pub async fn delete_rss(id: i64) -> Result<(), DBError> {
     let mut tx = tx_begin().await?;
     store::delete_rss(&mut tx, id).await?;
     tx.commit().await?;
     Ok(())
 }
 
-pub async fn update_rss(id: i64, info: &Rss) -> anyhow::Result<()> {
+pub async fn update_rss(id: i64, info: &Rss) -> Result<(), DBError> {
     let mut tx = tx_begin().await?;
     store::update_rss(&mut tx, id, &info).await?;
     tx.commit().await?;

@@ -3,9 +3,8 @@ mod mikan;
 use super::{Rss, RssSubscription, RssType};
 use async_trait::async_trait;
 pub use mikan::MikanParser;
-use thiserror::Error;
 
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum ParsingError {
     #[error("Failed to download {0}: {1}")]
     DownloadFailed(String, String),

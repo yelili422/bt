@@ -1,14 +1,58 @@
 use log::error;
-use serde::{Deserialize, Serialize};
+use serde::{de::Visitor, Deserialize, Serialize};
 
 use crate::rss::RssSubscriptionItem;
 
 /// RssFilter matches the file names in torrent files, then we can
 /// download the matched versions.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum RssFilter {
     /// Match the file name with the given regex.
     FilenameRegex(String),
+}
+
+impl Serialize for RssFilter {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            RssFilter::FilenameRegex(regex) => {
+                serializer.serialize_str(&format!("FilenameRegex-{}", regex))
+            }
+        }
+    }
+}
+
+struct RssFilterVisitor;
+
+impl<'de> Visitor<'de> for RssFilterVisitor {
+    type Value = RssFilter;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("a string like 'FilenameRegex-<regex>'")
+    }
+}
+
+impl<'de> Deserialize<'de> for RssFilter {
+    fn deserialize<D>(deserializer: D) -> Result<RssFilter, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+
+        let parts: Vec<&str> = s.splitn(2, '-').collect();
+        if parts.len() < 2 {
+            return Err(serde::de::Error::custom("Invalid filter format"));
+        }
+
+        let rest = parts[1..].join("-");
+
+        match parts[0] {
+            "FilenameRegex" => Ok(RssFilter::FilenameRegex(rest)),
+            _ => Err(serde::de::Error::custom("Invalid filter type")),
+        }
+    }
 }
 
 // NOTE: Don't use rss content to match file name, because rss content and rss parsers are not reliable.
@@ -48,43 +92,20 @@ impl RssFilter {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub enum RssFilterType {
-    Include,
-    Exclude,
-}
-
 /// RssFilterChain is a chain of filters.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RssFilterChain(pub Vec<(RssFilter, RssFilterType)>);
+pub struct RssFilterChain(pub Vec<RssFilter>);
 
 impl RssFilterChain {
     /// Match the given RSS item with all filters.
-    ///
-    /// There are two types of filters: Include and Exclude.
-    /// All downloading items should be included by any `Include` filters(or there is no `Include` filter)
-    /// and not excluded by any `Exclude` filters.
     pub async fn is_match(&self, rss_item: &RssSubscriptionItem) -> bool {
-        let mut include_matched = false;
-        for (filter, filter_type) in &self.0 {
-            let matched = filter.is_match(rss_item).await;
-            match filter_type {
-                RssFilterType::Include => {
-                    include_matched |= matched;
-                }
-                RssFilterType::Exclude => {
-                    if matched {
-                        return false;
-                    }
-                }
+        for filter in &self.0 {
+            if filter.is_match(rss_item).await {
+                return false;
             }
         }
-        include_matched || self.count_filters(RssFilterType::Include) == 0
-    }
 
-    #[inline]
-    fn count_filters(&self, filter_type: RssFilterType) -> usize {
-        self.0.iter().filter(|(_, t)| *t == filter_type).count()
+        true
     }
 }
 
@@ -153,9 +174,9 @@ mod tests {
     #[tokio::test]
     async fn test_filter_chain() {
         let filter_chain = RssFilterChain(vec![
-            (RssFilter::FilenameRegex("CR|Crunchyroll".to_string()), RssFilterType::Include),
-            (RssFilter::FilenameRegex("Baha".to_string()), RssFilterType::Include),
-            (RssFilter::FilenameRegex(r#"\.mp4$"#.to_string()), RssFilterType::Exclude),
+            RssFilter::FilenameRegex("CR|Crunchyroll".to_string()),
+            RssFilter::FilenameRegex("Baha".to_string()),
+            RssFilter::FilenameRegex(r#"\.mp4$"#.to_string()),
         ]);
 
         let filenames = vec![
@@ -165,7 +186,7 @@ mod tests {
             "[Up to 21°C] Yuru Camp△ Season 3 - 01 (Baha 1920x1080 AVC AAC MKV) [5BE12A49].mp4",
             "[Up to 21°C] Yuru Camp△ Season 3 - 01 (friDay 1920x1080 AVC AAC MKV) [5BE12A49].mkv",
         ];
-        let results = vec![true, true, true, false, false];
+        let results = vec![false, false, false, false, true];
         for (filename, result) in filenames.iter().zip(results.iter()) {
             let rss_item = gen_rss_item_with_filename(filename).await;
             assert_eq!(filter_chain.is_match(&rss_item).await, *result, "{}", filename);
@@ -174,10 +195,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_filter_chain_exclude_only() {
-        let filter_chain = RssFilterChain(vec![(
-            RssFilter::FilenameRegex(r#"\.mp4$"#.to_string()),
-            RssFilterType::Exclude,
-        )]);
+        let filter_chain = RssFilterChain(vec![RssFilter::FilenameRegex(r#"\.mp4$"#.to_string())]);
 
         let filenames = vec![
             "[Up to 21°C] Yuru Camp△ Season 3 - 01 (CR 1920x1080 AVC AAC MKV) [5BE12A49].mkv",

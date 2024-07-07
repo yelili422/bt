@@ -14,12 +14,11 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 use strum_macros::EnumString;
-use thiserror::Error;
 use tokio::sync::Mutex;
 use typed_builder::TypedBuilder;
 
 use crate::renamer::BangumiInfo;
-use crate::tx_begin;
+use crate::{tx_begin, DBError, DBResult};
 pub use bittorrent::*;
 pub use dummy::DummyDownloader;
 pub use qbittorrent::QBittorrentDownloader;
@@ -90,11 +89,11 @@ type TorrentCache = LruCache<String, Torrent>;
 static TORRENT_CACHE: Lazy<Mutex<TorrentCache>> =
     Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(100).unwrap())));
 
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 #[error("Torrent inaccessible: {0}\n {1}")]
 pub struct TorrentInaccessibleError(String, String);
 
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum DownloaderError {
     #[error("Invalid authentication for downloader: {0}")]
     InvalidAuthentication(String),
@@ -104,6 +103,9 @@ pub enum DownloaderError {
 
     #[error("Torrent inaccessible: {0}")]
     TorrentInaccessibleError(#[from] TorrentInaccessibleError),
+
+    #[error("Database error: {0}")]
+    DBError(#[from] DBError),
 }
 
 #[derive(Debug, Clone)]
@@ -144,7 +146,7 @@ pub enum DownloaderType {
     Dummy,
 }
 
-pub async fn is_task_exist(torrent_url: &str) -> anyhow::Result<bool> {
+pub async fn is_task_exist(torrent_url: &str) -> DBResult<bool> {
     let mut tx = tx_begin().await?;
     let exist = store::is_task_exist(&mut tx, torrent_url).await?;
     tx.rollback().await?;
@@ -155,7 +157,7 @@ pub async fn download_with_state(
     downloader: Arc<Mutex<Box<dyn Downloader>>>,
     torrent_meta: &TorrentMeta,
     bangumi_info: &BangumiInfo,
-) -> anyhow::Result<()> {
+) -> Result<(), DownloaderError> {
     let info_hash = torrent_meta.get_torrent_id().await?;
 
     let mut tx = tx_begin().await?;
@@ -193,13 +195,13 @@ pub async fn download_with_state(
     Ok(())
 }
 
-pub async fn get_bangumi_info(torrent_hash: &str) -> anyhow::Result<Option<BangumiInfo>> {
+pub async fn get_bangumi_info(torrent_hash: &str) -> DBResult<Option<BangumiInfo>> {
     let mut tx = tx_begin().await?;
     let info = store::get_bangumi_info(&mut tx, torrent_hash).await?;
     Ok(info)
 }
 
-pub async fn update_task_status(download_list: &Vec<DownloadingTorrent>) -> anyhow::Result<()> {
+pub async fn update_task_status(download_list: &Vec<DownloadingTorrent>) -> DBResult<()> {
     let mut tx = tx_begin().await?;
 
     for torrent in download_list {
@@ -225,14 +227,14 @@ pub async fn update_task_status(download_list: &Vec<DownloadingTorrent>) -> anyh
     Ok(())
 }
 
-pub async fn set_task_renamed(torrent_hash: &str) -> anyhow::Result<()> {
+pub async fn set_task_renamed(torrent_hash: &str) -> DBResult<()> {
     let mut tx = tx_begin().await?;
     store::update_task_renamed(&mut tx, torrent_hash).await?;
     tx.commit().await?;
     Ok(())
 }
 
-pub async fn is_renamed(torrent_hash: &str) -> anyhow::Result<bool> {
+pub async fn is_renamed(torrent_hash: &str) -> DBResult<bool> {
     let mut tx = tx_begin().await?;
     let renamed = store::is_renamed(&mut tx, torrent_hash).await?;
     tx.rollback().await?;

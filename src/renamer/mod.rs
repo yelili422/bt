@@ -1,8 +1,9 @@
 use log::{debug, info};
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use typed_builder::TypedBuilder;
 
-#[derive(Default, TypedBuilder, Debug, PartialEq, Eq)]
+#[derive(Default, TypedBuilder, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct BangumiInfo {
     pub show_name: String,
     #[builder(default)]
