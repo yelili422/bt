@@ -9,7 +9,7 @@ use crate::rss::{Rss, RssSubscription, RssSubscriptionItem};
 /// Parse the rss item info from the rss item title.
 ///
 /// The title format is not fixed. A regular format is:
-/// [fansub] title1/title2/... - episode [media_info1][media_info2]...
+/// [fansub] title1 / title2 / ... - episode [media_info1][media_info2]...
 ///
 /// A rss item info always contains:
 /// - fansub
@@ -18,14 +18,19 @@ use crate::rss::{Rss, RssSubscription, RssSubscriptionItem};
 /// - episode
 /// - media_info
 fn parse_rss_item_info(content: &str) -> Option<(String, String, u64, u64, String)> {
+    let content = pretreat_rss_item_title(content.to_string());
+
     // Parsing each item using standard(maybe) format, the result is always correct.
     match split_by_regular_format(&content) {
         Some(captures) => {
             // [喵萌奶茶屋&amp;LoliHouse]
-            let fansub = captures.name("fansub").unwrap().as_str().to_string();
+            let fansub = captures
+                .name("fansub")
+                .map_or("", |m| m.as_str())
+                .to_string();
             // 葬送的芙莉莲 / Sousou no Frieren
             let (title, season) =
-                parse_bangumi_title_and_season(captures.name("title").unwrap().as_str());
+                parse_bangumi_title_and_season(captures.name("title").map_or("", |m| m.as_str()));
             // 17
             let episode = captures
                 .name("episode")
@@ -34,15 +39,18 @@ fn parse_rss_item_info(content: &str) -> Option<(String, String, u64, u64, Strin
                 .parse::<u64>()
                 .unwrap();
             // [WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]
-            let media_info = captures.name("media").unwrap().as_str().to_string();
+            let media_info = captures
+                .name("media")
+                .map_or("", |m| m.as_str())
+                .to_string();
 
             Some((fansub, title, season, episode, media_info))
         }
         None => {
             // If it is fail, fallback to parse every part only and drop some info
             // because we can get them later from database alternatively.
-            let (fansub, title, season) = parse_fansub_title_season(content)?;
-            let (episode, media_info) = parse_episode_num_and_media_info(content)?;
+            let (fansub, title, season) = parse_fansub_title_season(&content)?;
+            let (episode, media_info) = parse_episode_num_and_media_info(&content)?;
 
             Some((fansub, title, season, episode, media_info))
         }
@@ -57,6 +65,24 @@ fn parse_rss_item_torrent(item: &MikanRssItem) -> TorrentMeta {
         .save_path(None)
         .category(None)
         .build()
+}
+
+fn pretreat_rss_item_title(title: String) -> String {
+    let mut res = title;
+    let replace_group = vec![r"【(.*?)】", r"★(.*?)★", r"\*(.*?)\*"];
+
+    for pattern in replace_group.iter() {
+        res = Regex::new(pattern)
+            .unwrap()
+            .replace_all(&res, |caps: &Captures| format!("[{}]", &caps[1]))
+            .to_string();
+    }
+
+    res = Regex::new(r"\[[^\]]*?月新番\]")
+        .unwrap()
+        .replace_all(&res, "")
+        .to_string();
+    res
 }
 
 fn parse_rss_item(item: &MikanRssItem) -> Result<RssSubscriptionItem, super::ParsingError> {
@@ -118,11 +144,14 @@ fn parse_bangumi_title_and_season(content: &str) -> (String, u64) {
 
 // e.g. [喵萌奶茶屋&amp;LoliHouse] 葬送的芙莉莲 / Sousou no Frieren - 17 [WebRip 1080p HEVC-10bit AAC][简繁日内封字幕]
 const PATTERN_REGULAR_TITLE: &str = r"^(?x) # enable extend mode
-(?<fansub>\[.*?\])*
+(?<fansub>\[.*?\])
 \s*
 (?<title>.*?)
 \s*\-\s*
-(?<episode>\d*)(?:v\d)?
+(?<episode>\d+)
+(?:v\d)?
+\s*
+(?<episode_name>.*?)?
 \s*
 (?<media>[\[\(].*[\]\)])*
 $";
@@ -135,21 +164,7 @@ fn split_by_regular_format(title: &str) -> Option<Captures> {
 }
 
 fn parse_fansub_title_season(content: &str) -> Option<(String, String, u64)> {
-    let mut content = content.to_string();
-
-    let replace_group = vec![r"【(.*?)】", r"★(.*?)★", r"\*(.*?)\*"];
-
-    for pattern in replace_group.iter() {
-        content = Regex::new(pattern)
-            .unwrap()
-            .replace_all(&content, |caps: &Captures| format!("[{}]", &caps[1]))
-            .to_string();
-    }
-
-    content = Regex::new(r"\[[^\]]*?月新番\]")
-        .unwrap()
-        .replace_all(&content, "")
-        .to_string();
+    let content = content.to_string();
 
     let slices: Vec<&str> = content
         .split(&['[', ']', '-'][..])
@@ -277,7 +292,7 @@ struct MikanRssChannel {
     item: Vec<MikanRssItem>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 struct MikanRssItem {
     guid: MikanGuid,
     link: String,
@@ -287,7 +302,7 @@ struct MikanRssItem {
     enclosure: MikanEnclosure,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 struct MikanGuid {
     #[serde(rename = "isPermaLink")]
     is_perma_link: String,
@@ -295,7 +310,7 @@ struct MikanGuid {
     value: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 struct MikanTorrent {
     link: String,
     #[serde(rename = "contentLength")]
@@ -304,7 +319,7 @@ struct MikanTorrent {
     pub_date: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 struct MikanEnclosure {
     #[serde(rename = "type")]
     enclosure_type: String,
@@ -344,6 +359,7 @@ mod tests {
             "【清蓝字幕组】新哆啦A梦 - New Doraemon [437][GB][720P]",
             "[云歌字幕组&萌樱字幕组][4月新番][无名记忆 Unnamed Memory][01][HEVC][x265 10bit][1080p][简体中文][先行版]",
             "[喵萌奶茶屋&LoliHouse] 迷宫饭 / Dungeon Meshi / Delicious in Dungeon - 19v2 [WebRip 1080p HEVC-10bit AAC EAC3][简繁日内封字幕]",
+            "[喵萌奶茶屋&LoliHouse] 物语系列 / Monogatari Series: Off & Monster Season - 01 愚物语 [WebRip 1080p HEVC-10bit AAC ASSx2][简繁内封字幕]",
         ];
         let result = vec![
             (
@@ -402,10 +418,19 @@ mod tests {
                 19,
                 "[WebRip 1080p HEVC-10bit AAC EAC3][简繁日内封字幕]".to_string(),
             ),
+            (
+                "[喵萌奶茶屋&LoliHouse]".to_string(),
+                "物语系列".to_string(),
+                1,
+                1,
+                "[WebRip 1080p HEVC-10bit AAC ASSx2][简繁内封字幕]".to_string(),
+            ),
         ];
 
         for (title, expect) in titles.iter().zip(result.iter()) {
-            assert_eq!(parse_rss_item_info(title).unwrap(), *expect);
+            let r = parse_rss_item_info(title);
+            assert!(r.is_some(), "title: {}", title);
+            assert_eq!(r.unwrap(), *expect, "title: {}", title);
         }
     }
 
