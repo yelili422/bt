@@ -45,7 +45,7 @@ impl Downloader for QBittorrentDownloader {
                 torrent
                     .save_path
                     .clone()
-                    .unwrap_or(String::from("/downloads")),
+                    .unwrap_or(String::from("/downloads/bangumi")),
             )
             .category(torrent.category.clone().unwrap_or(String::from("Bangumi")))
             .build();
