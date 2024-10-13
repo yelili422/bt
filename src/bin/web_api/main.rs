@@ -1,4 +1,6 @@
-use bt::{api, init};
+mod api;
+
+use bt::init;
 
 #[tokio::main]
 async fn main() {

@@ -7,6 +7,7 @@ use typed_builder::TypedBuilder;
 pub struct DownloadTask {
     #[builder(default)]
     pub id: Option<i64>,
+    pub rss_id: Option<i64>,
     pub torrent_hash: String,
     pub torrent_url: Option<String>,
     pub start_time: DateTime<Local>,

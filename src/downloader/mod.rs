@@ -1,93 +1,25 @@
 mod bittorrent;
-mod dummy;
-mod qbittorrent;
-mod store;
+mod bittorrent_meta;
+mod downloaders;
+pub mod store;
 mod task;
 
 use async_trait::async_trait;
-use log::{debug, error};
-use lru::LruCache;
-use once_cell::sync::{Lazy, OnceCell};
-use serde::{Deserialize, Serialize};
-use std::num::NonZeroUsize;
-use std::path::{Path, PathBuf};
+use log::{debug, error, info};
+use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 use strum_macros::EnumString;
-use tokio::sync::Mutex;
-use typed_builder::TypedBuilder;
+use tokio::sync::{oneshot, Mutex, OnceCell};
+use tokio::task::JoinHandle;
 
 use crate::renamer::BangumiInfo;
-use crate::{tx_begin, DBError, DBResult};
+use crate::DBError;
+
 pub use bittorrent::*;
-pub use dummy::DummyDownloader;
-pub use qbittorrent::QBittorrentDownloader;
+pub use bittorrent_meta::*;
 pub use task::*;
-
-/// The metadata of a torrent file
-#[derive(Debug, Clone, PartialEq, Eq, TypedBuilder, Default, Serialize, Deserialize)]
-pub struct TorrentMeta {
-    /// The url of the torrent file
-    pub url: String,
-    #[builder(default)]
-    content_len: Option<u64>,
-    #[builder(default)]
-    pub_date: Option<String>,
-    #[builder(default)]
-    save_path: Option<String>,
-    #[builder(default)]
-    category: Option<String>,
-}
-
-#[allow(dead_code)]
-impl TorrentMeta {
-    async fn download_dot_torrent(&self) -> Result<Vec<u8>, TorrentInaccessibleError> {
-        let url = &self.url;
-        let response = reqwest::get(url)
-            .await
-            .map_err(|e| TorrentInaccessibleError(url.to_string(), e.to_string()))?;
-        let content = response
-            .bytes()
-            .await
-            .map_err(|e| TorrentInaccessibleError(url.to_string(), e.to_string()))?;
-        Ok(content.to_vec())
-    }
-
-    async fn fetch_torrent(&self) -> Result<Torrent, TorrentInaccessibleError> {
-        let dot_torrent = self.download_dot_torrent().await?;
-        Torrent::from_bytes(&dot_torrent)
-            .map_err(|e| TorrentInaccessibleError(self.url.clone(), e.to_string()))
-    }
-
-    // Return a clone of the torrent in cache.
-    // If it's not present, download the torrent and update the cache.
-    async fn get_data(&self) -> Result<Torrent, TorrentInaccessibleError> {
-        let mut cache_lock = TORRENT_CACHE.lock().await;
-        let cache = cache_lock.get(&self.url);
-        match cache {
-            Some(torrent) => Ok(torrent.clone()),
-            None => {
-                let torrent = self.fetch_torrent().await?;
-                cache_lock.put(self.url.clone(), torrent.clone());
-                Ok(torrent)
-            }
-        }
-    }
-
-    pub async fn get_torrent_id(&self) -> Result<String, TorrentInaccessibleError> {
-        let torrent = self.get_data().await?;
-        Ok(hex::encode(&torrent.torrent_id()))
-    }
-
-    pub async fn get_name(&self) -> Result<String, TorrentInaccessibleError> {
-        let torrent = self.get_data().await?;
-        Ok(torrent.get_info_name())
-    }
-}
-
-type TorrentCache = LruCache<String, Torrent>;
-static TORRENT_CACHE: Lazy<Mutex<TorrentCache>> =
-    Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(100).unwrap())));
 
 #[derive(Debug, thiserror::Error)]
 #[error("Torrent inaccessible: {0}\n {1}")]
@@ -106,23 +38,6 @@ pub enum DownloaderError {
 
     #[error("Database error: {0}")]
     DBError(#[from] DBError),
-}
-
-#[derive(Debug, Clone)]
-pub struct DownloadingTorrent {
-    pub hash: String,
-    pub status: TaskStatus,
-    // Path where this torrent's data is stored
-    pub save_path: String,
-    // Torrent name
-    // if the torrent is a single file, this is the file name, otherwise the directory name
-    pub name: String,
-}
-
-impl DownloadingTorrent {
-    pub fn get_file_path(&self) -> PathBuf {
-        Path::new(&self.save_path).join(&self.name)
-    }
 }
 
 #[async_trait]
@@ -146,152 +61,204 @@ pub enum DownloaderType {
     Dummy,
 }
 
-pub async fn is_task_exist(torrent_url: &str) -> DBResult<bool> {
-    let mut tx = tx_begin().await?;
-    let exist = store::is_task_exist(&mut tx, torrent_url).await?;
-    tx.rollback().await?;
-    Ok(exist)
-}
+type DownloadingHook = Arc<dyn Fn(TaskStatus, &DownloadingTorrent) + Send + Sync>;
 
-pub async fn download_with_state(
+pub struct DownloadManager {
+    // inner downloader
     downloader: Arc<Mutex<Box<dyn Downloader>>>,
-    torrent_meta: &TorrentMeta,
-    bangumi_info: &BangumiInfo,
-) -> Result<(), DownloaderError> {
-    let info_hash = torrent_meta.get_torrent_id().await?;
 
-    let mut tx = tx_begin().await?;
+    // use to refresh the downloading status and execute hook tasks
+    shutdown_sender: Option<oneshot::Sender<()>>,
+    handle: Option<JoinHandle<()>>,
 
-    let created = store::add_task(
-        &mut tx,
-        &DownloadTask::builder()
-            .id(None)
-            .torrent_hash(info_hash)
-            .torrent_url(Some(torrent_meta.url.to_string()))
-            .status(TaskStatus::Downloading)
-            .start_time(chrono::Local::now())
-            .renamed(false)
-            .build(),
-        bangumi_info,
-    )
-    .await?;
+    hooks: Vec<DownloadingHook>,
+}
 
-    if created == 0 {
-        // Skip downloading if the task is already created
-        return Ok(());
-    }
-
-    let downloader_lock = downloader.lock().await;
-    match downloader_lock.download(torrent_meta).await {
-        Ok(_) => {
-            tx.commit().await?;
-        }
-        Err(err) => {
-            error!("Failed to download torrent: {}", err);
-            tx.rollback().await?;
+impl DownloadManager {
+    pub async fn new() -> Self {
+        let downloader = Self::get_downloader().await;
+        Self {
+            downloader,
+            shutdown_sender: None,
+            handle: None,
+            hooks: vec![],
         }
     }
 
-    Ok(())
-}
+    pub fn add_hook<F>(&mut self, hook: F)
+    where
+        F: Fn(TaskStatus, &DownloadingTorrent) + Send + Sync + 'static,
+    {
+        self.hooks.push(Arc::new(hook));
+    }
 
-pub async fn get_bangumi_info(torrent_hash: &str) -> DBResult<Option<BangumiInfo>> {
-    let mut tx = tx_begin().await?;
-    let info = store::get_bangumi_info(&mut tx, torrent_hash).await?;
-    Ok(info)
-}
+    pub fn start(&mut self) {
+        let (shutdown_sender, shutdown_receiver) = oneshot::channel();
+        let hooks = self.hooks.clone();
+        let downloader = self.downloader.clone();
+        let handle = tokio::spawn(async move {
+            tokio::select! {
+                _ = async {
+                    loop {
+                        _ = Self::update_downloading_status(downloader.clone(), &hooks).await;
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                    }
+                } => {},
+                _ = shutdown_receiver => {
+                    info!("[downloader] Shutdown signal received.");
+                },
+            }
+            info!("[downloader] Shuting down...");
+        });
 
-pub async fn update_task_status(download_list: &Vec<DownloadingTorrent>) -> DBResult<()> {
-    let mut tx = tx_begin().await?;
+        self.handle = Some(handle);
+        self.shutdown_sender = Some(shutdown_sender);
+    }
 
-    for torrent in download_list {
-        match store::get_task(&mut tx, &torrent.hash).await? {
-            Some(task) => {
-                if task.status != torrent.status {
-                    store::update_task_status(
-                        &mut tx,
-                        &torrent.hash,
-                        torrent.status,
-                        torrent.get_file_path().as_path(),
-                    )
-                    .await?;
+    pub async fn download_with_state(
+        &self,
+        rss_id: Option<i64>,
+        torrent_meta: &TorrentMeta,
+        bangumi_info: &BangumiInfo,
+    ) -> Result<(), DownloaderError> {
+        if store::is_task_exist(&torrent_meta.url).await? {
+            // Skip downloading if the torrent info already in the database .
+            return Ok(());
+        }
+
+        let mut torrent_meta = torrent_meta.clone();
+
+        // Set default torrent save path and category
+        if torrent_meta.save_path.is_none() {
+            torrent_meta.save_path = Some("/downloads/bangumi".to_string());
+        }
+        if torrent_meta.category.is_none() {
+            torrent_meta.category = Some("Bangumi".to_string());
+        }
+
+        let downloader_lock = self.downloader.lock().await;
+        {
+            match downloader_lock.download(&torrent_meta).await {
+                Ok(_) => {
+                    let info_hash = torrent_meta.get_torrent_id().await?;
+                    let task = DownloadTask::builder()
+                        .id(None)
+                        .rss_id(rss_id)
+                        .torrent_hash(info_hash)
+                        .torrent_url(Some(torrent_meta.url.to_string()))
+                        .status(TaskStatus::Downloading)
+                        .start_time(chrono::Local::now())
+                        .renamed(false)
+                        .build();
+
+                    store::add_task(rss_id, &task, bangumi_info).await?;
+                    Ok(())
+                }
+                Err(err) => Err(err),
+            }
+        }
+    }
+
+    async fn get_downloader() -> Arc<Mutex<Box<dyn Downloader>>> {
+        #[cfg(test)]
+        {
+            Arc::new(Mutex::new(Box::new(downloaders::DummyDownloader::new())))
+        }
+
+        #[cfg(not(test))]
+        match Self::get_downloader_type() {
+            Some(downloader_type) => {
+                let downloader = GLOBAL_DOWNLOADER
+                    .get_or_init(|| async {
+                        let downloader = Self::init_downloader(downloader_type);
+                        Arc::new(Mutex::new(downloader))
+                    })
+                    .await;
+
+                downloader.clone()
+            }
+            None => panic!("Downloader type not set"),
+        }
+    }
+
+    #[allow(unused)]
+    fn get_downloader_type() -> Option<DownloaderType> {
+        match std::env::var("DOWNLOADER_TYPE") {
+            Ok(downloader_type) => Some(
+                DownloaderType::from_str(&downloader_type)
+                    .expect(&format!("Invalid downloader type, {}", &downloader_type)),
+            ),
+            Err(_) => None,
+        }
+    }
+
+    #[allow(unused)]
+    fn init_downloader(downloader_type: DownloaderType) -> Box<dyn Downloader> {
+        match downloader_type {
+            DownloaderType::QBittorrent => {
+                let username = std::env::var("DOWNLOADER_USERNAME").unwrap();
+                let password = std::env::var("DOWNLOADER_PASSWORD").unwrap();
+                let url = std::env::var("DOWNLOADER_HOST").unwrap();
+                Box::new(downloaders::QBittorrentDownloader::new(&username, &password, &url))
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    async fn update_downloading_status(
+        downloader: Arc<Mutex<Box<dyn Downloader>>>,
+        hooks: &Vec<DownloadingHook>,
+    ) -> Result<(), DownloaderError> {
+        let downloader_lock = downloader.lock().await;
+        {
+            let download_list = downloader_lock.get_download_list().await?;
+            for torrent in download_list {
+                match store::get_task(&torrent.hash).await? {
+                    Some(task_in_store) => {
+                        if task_in_store.status != torrent.status {
+                            store::update_task_status(
+                                &torrent.hash,
+                                torrent.status,
+                                torrent.get_file_path().as_path(),
+                            )
+                            .await?;
+
+                            for hook in hooks {
+                                hook(torrent.status, &torrent);
+                            }
+                        }
+                    }
+                    None => {
+                        debug!(
+                            "Skip updating task status created by other process: [{}]",
+                            &torrent.hash
+                        );
+                    }
                 }
             }
-            None => {
-                debug!("Skip updating task status created by other process: [{}]", &torrent.hash);
-            }
+        }
+
+        Ok(())
+    }
+}
+
+impl Drop for DownloadManager {
+    fn drop(&mut self) {
+        if let Some(shutdown_sender) = self.shutdown_sender.take() {
+            let _ = shutdown_sender.send(());
+        }
+
+        // Wait for the task to finish
+        if let Some(handle) = self.handle.take() {
+            tokio::spawn(async move {
+                let _ = handle.await;
+            });
         }
     }
-
-    tx.commit().await?;
-    Ok(())
-}
-
-pub async fn set_task_renamed(torrent_hash: &str) -> DBResult<()> {
-    let mut tx = tx_begin().await?;
-    store::update_task_renamed(&mut tx, torrent_hash).await?;
-    tx.commit().await?;
-    Ok(())
-}
-
-pub async fn is_renamed(torrent_hash: &str) -> DBResult<bool> {
-    let mut tx = tx_begin().await?;
-    let renamed = store::is_renamed(&mut tx, torrent_hash).await?;
-    tx.rollback().await?;
-    Ok(renamed)
 }
 
 #[allow(dead_code)]
-static GLOBAL_DOWNLOADER: OnceCell<Arc<Mutex<Box<dyn Downloader>>>> = OnceCell::new();
-
-pub fn get_downloader() -> Arc<Mutex<Box<dyn Downloader>>> {
-    #[cfg(test)]
-    {
-        Arc::new(Mutex::new(Box::new(DummyDownloader::new())))
-    }
-
-    #[cfg(not(test))]
-    match get_downloader_type() {
-        Some(downloader_type) => {
-            let downloader = GLOBAL_DOWNLOADER.get_or_init(|| {
-                let downloader = init_downloader(downloader_type);
-                Arc::new(Mutex::new(downloader))
-            });
-
-            downloader.clone()
-        }
-        None => panic!("Downloader type not set"),
-    }
-}
-
-pub fn get_downloader_type() -> Option<DownloaderType> {
-    match std::env::var("DOWNLOADER_TYPE") {
-        Ok(downloader_type) => Some(
-            DownloaderType::from_str(&downloader_type)
-                .expect(&format!("Invalid downloader type, {}", &downloader_type)),
-        ),
-        Err(_) => None,
-    }
-}
-
-pub fn init_downloader(downloader_type: DownloaderType) -> Box<dyn Downloader> {
-    match downloader_type {
-        DownloaderType::QBittorrent => {
-            let username = std::env::var("DOWNLOADER_USERNAME").unwrap();
-            let password = std::env::var("DOWNLOADER_PASSWORD").unwrap();
-            let url = std::env::var("DOWNLOADER_HOST").unwrap();
-            Box::new(QBittorrentDownloader::new(&username, &password, &url))
-        }
-        _ => unreachable!(),
-    }
-}
-
-#[cfg(test)]
-#[allow(unused)]
-pub async fn update_torrent_cache(url: &str, torrent: &Torrent) {
-    let mut cache_lock = TORRENT_CACHE.lock().await;
-    cache_lock.put(url.to_string(), torrent.clone());
-}
+static GLOBAL_DOWNLOADER: OnceCell<Arc<Mutex<Box<dyn Downloader>>>> = OnceCell::const_new();
 
 #[cfg(test)]
 mod tests {
@@ -303,27 +270,29 @@ mod tests {
 
         init().await;
 
-        let downloader = get_downloader();
+        let downloader = DownloadManager::new().await;
         let torrent = get_dummy_torrent().await;
-        download_with_state(
-            downloader.clone(),
-            &torrent,
-            &BangumiInfo::builder()
-                .show_name("dummy".to_string())
-                .episode_name(Some("".to_string()))
-                .display_name(Some("".to_string()))
-                .season(1u64)
-                .episode(1u64)
-                .category(None)
-                .build(),
-        )
-        .await
-        .unwrap();
+
+        downloader
+            .download_with_state(
+                None,
+                &torrent,
+                &BangumiInfo::builder()
+                    .show_name("dummy".to_string())
+                    .episode_name(Some("".to_string()))
+                    .display_name(Some("".to_string()))
+                    .season(1u64)
+                    .episode(1u64)
+                    .category(None)
+                    .build(),
+            )
+            .await
+            .unwrap();
 
         let torrent_hash = torrent.get_torrent_id().await.unwrap();
-        assert_eq!(is_renamed(&torrent_hash).await.unwrap(), false);
+        assert_eq!(store::is_renamed(&torrent_hash).await.unwrap(), false);
 
-        set_task_renamed(&torrent_hash).await.unwrap();
-        assert_eq!(is_renamed(&torrent_hash).await.unwrap(), true);
+        store::update_task_renamed(&torrent_hash).await.unwrap();
+        assert_eq!(store::is_renamed(&torrent_hash).await.unwrap(), true);
     }
 }

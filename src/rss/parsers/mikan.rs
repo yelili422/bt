@@ -1,4 +1,4 @@
-use log::error;
+use log::{debug, error};
 use regex::{Captures, Regex};
 use serde::{Deserialize, Serialize};
 
@@ -44,6 +44,8 @@ fn parse_rss_item_info(content: &str) -> Option<(String, String, u64, u64, Strin
                 .map_or("", |m| m.as_str())
                 .to_string();
 
+            let title = remove_redundant_brackets(&title);
+
             Some((fansub, title, season, episode, media_info))
         }
         None => {
@@ -60,8 +62,6 @@ fn parse_rss_item_info(content: &str) -> Option<(String, String, u64, u64, Strin
 fn parse_rss_item_torrent(item: &MikanRssItem) -> TorrentMeta {
     TorrentMeta::builder()
         .url(item.enclosure.url.clone())
-        .content_len(Some(item.enclosure.length.clone()))
-        .pub_date(Some(item.torrent.pub_date.clone()))
         .save_path(None)
         .category(None)
         .build()
@@ -163,6 +163,12 @@ fn split_by_regular_format(title: &str) -> Option<Captures> {
     return re.captures(title);
 }
 
+#[inline]
+fn remove_redundant_brackets(title: &str) -> String {
+    let re = Regex::new(r"[\[][^\]]*[\]]").unwrap();
+    re.replace_all(title, "").trim().to_string()
+}
+
 fn parse_fansub_title_season(content: &str) -> Option<(String, String, u64)> {
     let content = content.to_string();
 
@@ -237,10 +243,7 @@ impl RssParser for MikanParser {
                     parse_bangumi_title_and_season(&raw_title_content);
 
                 if channel_title == "我的番组" {
-                    return Err(super::ParsingError::InvalidRss(
-                        // TODO:
-                        "Mikan aggregation rss is not supported yet".to_string(),
-                    ));
+                    debug!("[parser] Parsing aggregation items...");
                 }
 
                 for item in rss_xml.channel.item {
@@ -461,8 +464,6 @@ mod tests {
                     category: "".to_string(),
                     torrent: TorrentMeta::builder()
                         .url("https://mikanani.me/Download/20240118/059724511d60173251b378b04709aceff92fffb5.torrent".to_string())
-                        .content_len(Some(664923008u64))
-                        .pub_date(Some("2024-01-18T06:57:43.93".to_string()))
                         .build(),
                 },
                 RssSubscriptionItem {
@@ -476,8 +477,6 @@ mod tests {
                     category: "".to_string(),
                     torrent: TorrentMeta::builder()
                         .url("https://mikanani.me/Download/20240111/872ab5abd72ea223d2a2e36688cc96f83bb71d42.torrent".to_string())
-                        .content_len(Some(670857984u64))
-                        .pub_date(Some("2024-01-11T06:57:59.057".to_string()))
                         .build(),
                 },
             ],
@@ -507,8 +506,6 @@ mod tests {
                     category: "".to_string(),
                     torrent: TorrentMeta::builder()
                         .url("https://mikanani.me/Download/20240306/65515bee0f9e64d00613e148afac9fbf26e13060.torrent".to_string())
-                        .content_len(Some(449052672u64))
-                        .pub_date(Some("2024-03-06T21:41:22.281".to_string()))
                         .build(),
                 },
             ],
@@ -516,7 +513,6 @@ mod tests {
         assert_eq!(res, expect);
     }
 
-    #[ignore = "mikan aggregation not supported yet"]
     #[test]
     fn test_parse_rss_aggregation() {
         let rss_content = read_to_string("./tests/dataset/mikan-aggregation.rss").unwrap();
@@ -537,8 +533,6 @@ mod tests {
                 category: "".to_string(),
                     torrent: TorrentMeta::builder()
                     .url("https://mikanani.me/Download/20240313/38b3ab86bc9046f12edca2a2408ac1e7161a8c94.torrent".to_string())
-                    .content_len(Some(554654784u64))
-                    .pub_date(Some("2024-03-13T23:31:32.102".to_string()))
                     .build(),
             },
             RssSubscriptionItem {
@@ -552,8 +546,6 @@ mod tests {
                 category: "".to_string(),
                     torrent: TorrentMeta::builder()
                     .url("https://mikanani.me/Download/20240313/d2e587e0e10d77fcebdc4552d0725e43e2fa2fe6.torrent".to_string())
-                    .content_len(Some(654342912u64))
-                    .pub_date(Some("2024-03-13T23:02:04.724".to_string()))
                     .build(),
             },
             RssSubscriptionItem {
@@ -567,8 +559,6 @@ mod tests {
                 category: "".to_string(),
                     torrent: TorrentMeta::builder()
                     .url("https://mikanani.me/Download/20240313/ef56a70e19199829a0280cc022ece291fa186316.torrent".to_string())
-                    .content_len(Some(1471026304u64))
-                    .pub_date(Some("2024-03-13T22:01:57.497".to_string()))
                     .build(),
             },
             RssSubscriptionItem {
@@ -582,8 +572,6 @@ mod tests {
                 category: "".to_string(),
                 torrent: TorrentMeta::builder()
                     .url("https://mikanani.me/Download/20240313/49b9c8dd833629d39e09a4e9568bde6b6a71a01b.torrent".to_string())
-                    .content_len(Some(251301728u64))
-                    .pub_date(Some("2024-03-13T20:31:07.116".to_string()))
                     .build(),
             },
             RssSubscriptionItem {
@@ -597,8 +585,6 @@ mod tests {
                 category: "".to_string(),
                 torrent: TorrentMeta::builder()
                     .url("https://mikanani.me/Download/20240312/f6d8f1b7131135c2c8b295aca18c64cb6405e2aa.torrent".to_string())
-                    .content_len(Some(1471026304u64))
-                    .pub_date(Some("2024-03-12T00:31:33.72".to_string()))
                     .build(),
             },
             RssSubscriptionItem {
@@ -612,8 +598,6 @@ mod tests {
                 category: "".to_string(),
                 torrent: TorrentMeta::builder()
                     .url("https://mikanani.me/Download/20240310/da075c8a8e0b9f71e130b978fb94e4def0745b30.torrent".to_string())
-                    .content_len(Some(286858944u64))
-                    .pub_date(Some("2024-03-10T20:46:52.314".to_string()))
                     .build(),
             },
             RssSubscriptionItem {
@@ -627,13 +611,11 @@ mod tests {
                 category: "".to_string(),
                 torrent: TorrentMeta::builder()
                     .url("https://mikanani.me/Download/20240310/6f9bb9e56663194eb68a0811890751d1e66f6fbd.torrent".to_string())
-                    .content_len(Some(1471026304u64))
-                    .pub_date(Some("2024-03-10T01:31:34.279".to_string()))
                     .build(),
             },
         ];
         res.items.iter().zip(expect.iter()).for_each(|(a, b)| {
-            assert_eq!(a, b);
+            assert_eq!(a, b, "parse rss failed: {}", a.title);
         });
     }
 }

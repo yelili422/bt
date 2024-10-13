@@ -5,11 +5,9 @@ use actix_web::dev::{ServiceFactory, ServiceRequest, ServiceResponse};
 use actix_web::http::StatusCode;
 use actix_web::middleware::Logger;
 use actix_web::{get, web, App, Error, HttpResponse, HttpServer, Responder, ResponseError};
+use bt::BTError;
 use log::info;
-
 pub use rss_api::*;
-
-use crate::{BTError, BTResult};
 
 pub async fn run() -> std::io::Result<()> {
     info!("[api] Starting web server...");
@@ -47,10 +45,21 @@ pub(crate) fn setup_app() -> App<
         .service(rss_scope)
 }
 
-impl ResponseError for BTError {
+#[get("/ping")]
+async fn ping() -> ApiResult<impl Responder> {
+    Ok(web::Json("pong"))
+}
+
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum ApiError {
+    #[error("Internal Error: {0}")]
+    InternalError(#[from] BTError),
+}
+
+impl ResponseError for ApiError {
     fn status_code(&self) -> StatusCode {
         match self {
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
+            ApiError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -60,7 +69,4 @@ impl ResponseError for BTError {
     }
 }
 
-#[get("/ping")]
-async fn ping() -> BTResult<impl Responder> {
-    Ok(web::Json("pong"))
-}
+type ApiResult<T> = Result<T, ApiError>;

@@ -28,7 +28,7 @@ endif
 
 .PHONY: test
 test: build
-	cargo test --verbose
+	RUST_BACKTRACE=full cargo test --verbose
 
 .PHONY: fmt
 fmt:

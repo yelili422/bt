@@ -67,6 +67,11 @@
         "name": "renamed",
         "ordinal": 12,
         "type_info": "Int64"
+      },
+      {
+        "name": "rss_id",
+        "ordinal": 13,
+        "type_info": "Int64"
       }
     ],
     "parameters": {
@@ -85,7 +90,8 @@
       true,
       true,
       true,
-      false
+      false,
+      true
     ]
   },
   "hash": "e1e07ef095605005bbb1295809384ec07ac57e8078e01f42a2a0f77f2f762dd7"

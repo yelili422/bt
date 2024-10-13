@@ -1,23 +1,27 @@
 use dotenvy::dotenv;
-use downloader::DownloadingTorrent;
-use log::{debug, error, info};
+use downloader::{DownloadManager, DownloadingTorrent};
+use log::{debug, error};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use crate::downloader::Downloader;
 use crate::rss::parsers;
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::SqlitePool;
-use tokio::sync::{mpsc, Mutex, OnceCell};
+use tokio::sync::{Mutex, OnceCell};
 
-pub mod api;
 pub mod downloader;
 pub mod notification;
 pub mod renamer;
 pub mod rss;
 #[cfg(test)]
 mod test;
+
+macro_rules! log_with {
+    ($level:ident, $prefix:expr, $($arg:tt)*) => {
+        log::$level!("[{:04}]{}", $prefix, format_args!($($arg)*))
+    };
+}
 
 #[allow(unused)]
 static INIT: OnceCell<()> = OnceCell::const_new();
@@ -41,123 +45,103 @@ pub async fn init() {
     .await;
 }
 
-pub async fn download_rss_feeds(downloader: Arc<Mutex<Box<dyn Downloader>>>) -> BTResult<()> {
+pub async fn download_rss_feeds(downloader: &DownloadManager) -> BTResult<()> {
     debug!("[rss] Fetching RSS feeds...");
-    let rss_list = rss::list_rss().await.unwrap_or_default();
+    let rss_list = rss::store::query_rss().await.unwrap_or_default();
 
     for rss in rss_list {
+        let rss_id = rss.id.expect("Rss id should not be None here.");
         if !rss.enabled.unwrap_or(false) {
-            debug!("[rss] Skip disabled RSS: ({})", rss.url);
+            log_with!(debug, rss_id, "[rss] Skip disabled RSS: ({})", rss.url);
             continue;
         }
+
         match parsers::parse(&rss).await {
             Ok(feeds) => {
                 for feed in &feeds.items {
-                    // Skip downloading if the torrent info already in the database .
-                    // Because we don't need to download again if this task was renamed from the downloader.
-                    if downloader::is_task_exist(&feed.torrent.url).await? {
-                        debug!("[parser] Task already in downloading list: {:?}", feed);
-                        continue;
-                    }
-
+                    // TODO: Rss filter should contains including type.
                     // If the torrent files mismatch the filter rules, skip downloading
                     if let Some(filter) = &rss.filters {
                         if !filter.is_match(&feed).await {
-                            info!("[parser] Skip torrent by rules: {:?}", feed);
+                            log_with!(info, rss_id, "[parser] Skip torrent by rules: {:?}", feed);
                             continue;
                         }
                     }
 
-                    downloader::download_with_state(
-                        downloader.clone(),
-                        &feed.torrent,
-                        &feed.into(),
-                    )
-                    .await
-                    .unwrap_or_else(|e| {
-                        error!("[parser] Failed to download torrent: {:?}", e);
-                    });
+                    downloader
+                        .download_with_state(Some(rss_id), &feed.torrent, &feed.into())
+                        .await
+                        .unwrap_or_else(|e| {
+                            log_with!(
+                                error,
+                                rss_id,
+                                "[parser] Failed to download torrent: {:?}",
+                                e
+                            );
+                        });
                     tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
                 }
             }
             Err(e) => {
-                error!("[parser] Failed to parse RSS: {:?}", e);
+                log_with!(error, rss_id, "[parser] Failed to parse RSS: {:?}", e);
             }
-        }
-    }
-    Ok(())
-}
-
-pub async fn checking_download_task(
-    downloader: Arc<Mutex<Box<dyn Downloader>>>,
-    finished_ch: &mpsc::Sender<DownloadingTorrent>,
-) -> BTResult<()> {
-    let downloader_lock = downloader.lock().await;
-    let download_list = downloader_lock.get_download_list().await?;
-    downloader::update_task_status(&download_list).await?;
-    for task in download_list {
-        if task.status == downloader::TaskStatus::Completed {
-            finished_ch.send(task).await.expect("receiver dropped")
         }
     }
     Ok(())
 }
 
 pub async fn rename_downloaded_files(
-    finished_ch: &mut mpsc::Receiver<DownloadingTorrent>,
-    archived_path: String,
-    download_path_mapping: Option<String>,
+    download_task: &DownloadingTorrent,
+    archived_path: &str,
+    download_path_mapping: Option<&str>,
     notifier: Option<Arc<Mutex<Box<dyn notification::Notifier>>>>,
 ) -> BTResult<()> {
-    let dst_folder = Path::new(&archived_path);
-    while let Some(task) = finished_ch.recv().await {
-        // ignore all tasks renamed or not found
-        match downloader::is_renamed(&task.hash).await {
-            Ok(true) => {
-                debug!("[rename] Skip renaming task [{}] already renamed", task.hash);
-                continue;
-            }
-            Err(_) => {
-                debug!("[rename] Skip renaming task download manually: [{}]", task.hash);
-                continue;
-            }
-            _ => {}
-        };
+    let dst_folder = Path::new(archived_path);
+    let torrent_hash = &download_task.hash;
 
-        let src_path = PathBuf::from(task.save_path).join(task.name);
-        let mut remapped_src_path = src_path.clone();
-
-        // replace path if `download_path_mapping` is set
-        if let Some(path_map) = download_path_mapping.as_ref() {
-            remapped_src_path = renamer::replace_path(src_path.clone(), path_map);
+    // ignore all tasks renamed or not found
+    match downloader::store::is_renamed(&torrent_hash).await {
+        Ok(true) => {
+            debug!("[rename] Skip renaming task [{}] already renamed", torrent_hash);
+            return Ok(());
         }
+        Err(_) => {
+            debug!("[rename] Skip renaming task download manually: [{}]", torrent_hash);
+            return Ok(());
+        }
+        _ => {}
+    };
 
-        match downloader::get_bangumi_info(&task.hash).await? {
-            Some(info) => {
-                match renamer::rename(&info, &remapped_src_path, dst_folder) {
-                    Ok(()) => {
-                        downloader::set_task_renamed(&task.hash).await?;
+    let src_path = PathBuf::from(&download_task.save_path).join(&download_task.name);
+    let mut remapped_src_path = src_path.clone();
 
-                        // TODO: Try to move the downloaded files to a separate folder.
+    // replace path if `download_path_mapping` is set
+    if let Some(path_map) = download_path_mapping.as_ref() {
+        remapped_src_path = renamer::replace_path(src_path.clone(), path_map);
+    }
 
-                        // Send notification
-                        if let Some(notifier) = notifier.as_ref() {
-                            let msg =
-                                notification::Notification::DownloadFinished(info).to_string();
-                            let notifier_lock = notifier.lock().await;
-                            debug!("[notification] Sending notification: {}", msg);
-                            notifier_lock.send(&msg).await;
-                        }
-                    }
-                    Err(e) => {
-                        error!("[rename] Failed to rename task [{}]: {:?}", task.hash, e);
+    match downloader::store::get_bangumi_info(&torrent_hash).await? {
+        Some(info) => {
+            match renamer::rename(&info, &remapped_src_path, dst_folder) {
+                Ok(()) => {
+                    downloader::store::update_task_renamed(&torrent_hash).await?;
+
+                    // Send notification
+                    if let Some(notifier) = notifier.as_ref() {
+                        let msg = notification::Notification::DownloadFinished(info).to_string();
+                        let notifier_lock = notifier.lock().await;
+                        debug!("[notification] Sending notification: {}", msg);
+                        notifier_lock.send(&msg).await;
                     }
                 }
+                Err(e) => {
+                    error!("[rename] Failed to rename task [{}]: {:?}", torrent_hash, e);
+                }
             }
-            None => {
-                // This task was downloaded manually.
-                debug!("[rename] Skip renaming task [{}] without media info", task.hash);
-            }
+        }
+        None => {
+            // This task was downloaded manually.
+            debug!("[rename] Skip renaming task [{}] without media info", torrent_hash);
         }
     }
 
@@ -201,8 +185,8 @@ pub enum BTError {
     #[error("Downloader error: {0}")]
     DownloaderError(#[from] downloader::DownloaderError),
 
-    #[error("Renamer error: {0}")]
+    #[error("Parsing error: {0}")]
     ParsingError(#[from] parsers::ParsingError),
 }
 
-type BTResult<T> = Result<T, BTError>;
+pub type BTResult<T> = Result<T, BTError>;

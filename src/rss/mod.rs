@@ -1,4 +1,3 @@
-use log::info;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumString};
 use typed_builder::TypedBuilder;
@@ -6,11 +5,10 @@ use typed_builder::TypedBuilder;
 use crate::downloader::TorrentMeta;
 use crate::renamer::BangumiInfo;
 use crate::rss::filter::RssFilterChain;
-use crate::{tx_begin, DBError};
 
 mod filter;
 pub mod parsers;
-mod store;
+pub mod store;
 
 #[derive(Debug, Clone, TypedBuilder, Serialize, Deserialize)]
 pub struct Rss {
@@ -101,89 +99,9 @@ impl From<&RssSubscriptionItem> for BangumiInfo {
     }
 }
 
-pub async fn list_rss() -> Result<Vec<Rss>, DBError> {
-    let mut tx = tx_begin().await?;
-    let rss_list = store::query_rss(&mut tx).await?;
-    tx.rollback().await?;
-    Ok(rss_list)
-}
-
-pub async fn add_rss(info: &Rss) -> Result<i64, DBError> {
-    let mut tx = tx_begin().await?;
-
-    let id = match store::check_repeat_by_url(&mut tx, &info.url).await? {
-        Some(id) => {
-            info!("[store] RSS url {} already exists", &info.url);
-            id
-        }
-        None => store::insert_rss(&mut tx, &info).await?,
-    };
-
-    tx.commit().await?;
-    Ok(id)
-}
-
-pub async fn delete_rss(id: i64) -> Result<(), DBError> {
-    let mut tx = tx_begin().await?;
-    store::delete_rss(&mut tx, id).await?;
-    tx.commit().await?;
-    Ok(())
-}
-
-pub async fn update_rss(id: i64, info: &Rss) -> Result<(), DBError> {
-    let mut tx = tx_begin().await?;
-    store::update_rss(&mut tx, id, &info).await?;
-    tx.commit().await?;
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::init;
-
-    #[tokio::test]
-    async fn test_rss() {
-        init().await;
-
-        let rss_list = list_rss().await.unwrap();
-        assert_eq!(rss_list.len(), 0);
-
-        let mut rss = Rss::builder()
-            .title(Some("Sousou no Frieren".to_string()))
-            .url(
-                "https://mikanani.me/Home/Episode/059724511d60173251b378b04709aceff92fffb5"
-                    .to_string(),
-            )
-            .rss_type(RssType::Mikan)
-            .season(Some(1))
-            .enabled(Some(true))
-            .build();
-
-        let id = add_rss(&rss).await.unwrap();
-        let rss_list = list_rss().await.unwrap();
-        assert_eq!(rss_list.len(), 1);
-
-        assert_eq!(rss_list[0].id, Some(id));
-        assert_eq!(rss_list[0].url, rss.url);
-        assert_eq!(rss_list[0].rss_type, rss.rss_type);
-        assert_eq!(rss_list[0].season, rss.season);
-        assert_eq!(rss_list[0].enabled, rss.enabled);
-        assert_eq!(rss_list[0].title, rss.title);
-
-        rss.title = Some("Frieren: Beyond Journey's End".to_string());
-        assert_eq!(add_rss(&rss).await.unwrap(), id);
-
-        update_rss(id, &rss).await.unwrap();
-
-        let rss_list = list_rss().await.unwrap();
-        assert_eq!(rss_list.len(), 1);
-        assert_eq!(rss_list[0].title, rss.title);
-
-        delete_rss(id).await.unwrap();
-        let rss_list = list_rss().await.unwrap();
-        assert_eq!(rss_list.len(), 0);
-    }
 
     #[test]
     fn test_rss_item_to_bangumi_info() {
@@ -198,8 +116,6 @@ mod tests {
             category: "".to_string(),
             torrent: crate::downloader::TorrentMeta::builder()
                 .url("https://mikanani.me/Download/20240118/059724511d60173251b378b04709aceff92fffb5.torrent".to_string())
-                .content_len(Some(664923008u64))
-                .pub_date(Some("2024-01-18T06:57:43.93".to_string()))
                 .build(),
         };
 

@@ -1,4 +1,5 @@
 use crate::downloader::{DownloadTask, TaskStatus};
+use crate::get_pool;
 use crate::renamer::BangumiInfo;
 use log::{debug, info};
 use sqlx::query;
@@ -6,14 +7,15 @@ use std::path::Path;
 use std::str::FromStr;
 
 pub async fn add_task(
-    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    rss_id: Option<i64>,
     task: &DownloadTask,
     bangumi_info: &BangumiInfo,
 ) -> Result<i64, sqlx::Error> {
+    let pool = &get_pool().await;
     // check if the task is already in the database
     let rec =
         query!(r#"SELECT * FROM main.download_task WHERE torrent_hash = ?1"#, task.torrent_hash,)
-            .fetch_optional(&mut **tx)
+            .fetch_optional(pool)
             .await?;
 
     if let Some(task) = rec {
@@ -31,7 +33,7 @@ pub async fn add_task(
 
         // else remove the task to update all the fields
         query!(r#"DELETE FROM main.download_task WHERE torrent_hash = ?1"#, task.torrent_hash,)
-            .execute(&mut **tx)
+            .execute(pool)
             .await?;
     }
 
@@ -42,13 +44,14 @@ pub async fn add_task(
 
     let rec = query!(
         r#"
-INSERT INTO main.download_task (torrent_hash, torrent_url, start_time, status,
+INSERT INTO main.download_task (torrent_hash, torrent_url, rss_id, start_time, status,
     show_name, episode_name, display_name, season, episode, category, renamed)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
 RETURNING id
         "#,
         task.torrent_hash,
         task.torrent_url,
+        rss_id,
         start_time,
         task_status,
         bangumi_info.show_name,
@@ -59,7 +62,7 @@ RETURNING id
         bangumi_info.category,
         task.renamed,
     )
-    .fetch_one(&mut **tx)
+    .fetch_one(pool)
     .await?;
 
     info!(
@@ -70,29 +73,24 @@ RETURNING id
     Ok(rec.id)
 }
 
-pub async fn is_task_exist(
-    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
-    torrent_url: &str,
-) -> Result<bool, sqlx::Error> {
+pub async fn is_task_exist(torrent_url: &str) -> Result<bool, sqlx::Error> {
     let rec = query!(r#"SELECT * FROM main.download_task WHERE torrent_url = ?1"#, torrent_url)
-        .fetch_optional(&mut **tx)
+        .fetch_optional(&get_pool().await)
         .await?;
 
     Ok(rec.is_some())
 }
 
-pub async fn get_task(
-    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
-    torrent_hash: &str,
-) -> Result<Option<DownloadTask>, sqlx::Error> {
+pub async fn get_task(torrent_hash: &str) -> Result<Option<DownloadTask>, sqlx::Error> {
     let rec = query!(r#"SELECT * FROM main.download_task WHERE torrent_hash = ?1"#, torrent_hash)
-        .fetch_optional(&mut **tx)
+        .fetch_optional(&get_pool().await)
         .await?;
 
     match rec {
         None => return Ok(None),
         Some(rec) => Ok(Some(DownloadTask {
             id: Some(rec.id),
+            rss_id: rec.rss_id,
             torrent_hash: rec.torrent_hash,
             torrent_url: rec.torrent_url,
             start_time: chrono::DateTime::parse_from_rfc3339(&rec.start_time)
@@ -105,21 +103,20 @@ pub async fn get_task(
 }
 
 #[allow(unused)]
-pub async fn get_tasks_need_renamed(
-    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
-) -> Result<Vec<DownloadTask>, sqlx::Error> {
+pub async fn get_tasks_need_renamed() -> Result<Vec<DownloadTask>, sqlx::Error> {
     let status_completed = TaskStatus::Completed.to_string();
     let recs = query!(
         r#"SELECT * FROM main.download_task WHERE status = ?1 AND renamed = 0"#,
         status_completed
     )
-    .fetch_all(&mut **tx)
+    .fetch_all(&get_pool().await)
     .await?;
 
     let tasks = recs
         .iter()
         .map(|rec| DownloadTask {
             id: Some(rec.id),
+            rss_id: rec.rss_id,
             torrent_hash: rec.torrent_hash.clone(),
             torrent_url: rec.torrent_url.clone(),
             start_time: chrono::DateTime::parse_from_rfc3339(&rec.start_time)
@@ -133,12 +130,9 @@ pub async fn get_tasks_need_renamed(
     Ok(tasks)
 }
 
-pub async fn get_bangumi_info(
-    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
-    torrent_hash: &str,
-) -> Result<Option<BangumiInfo>, sqlx::Error> {
+pub async fn get_bangumi_info(torrent_hash: &str) -> Result<Option<BangumiInfo>, sqlx::Error> {
     let rec = query!(r#"SELECT * FROM main.download_task WHERE torrent_hash = ?1"#, torrent_hash)
-        .fetch_optional(&mut **tx)
+        .fetch_optional(&get_pool().await)
         .await?;
 
     match rec {
@@ -155,7 +149,6 @@ pub async fn get_bangumi_info(
 }
 
 pub async fn update_task_status(
-    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     torrent_hash: &str,
     status: TaskStatus,
     path: &Path,
@@ -168,7 +161,7 @@ pub async fn update_task_status(
         download_path,
         torrent_hash
     )
-    .execute(&mut **tx)
+    .execute(&get_pool().await)
     .await?;
 
     info!(
@@ -178,30 +171,24 @@ pub async fn update_task_status(
     Ok(())
 }
 
-pub async fn update_task_renamed(
-    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
-    torrent_hash: &str,
-) -> Result<(), sqlx::Error> {
+pub async fn update_task_renamed(torrent_hash: &str) -> Result<(), sqlx::Error> {
     query!(
         r#"UPDATE main.download_task SET renamed = 1 WHERE torrent_hash = ?1"#,
         torrent_hash
     )
-    .execute(&mut **tx)
+    .execute(&get_pool().await)
     .await?;
 
     debug!("[store] Marked task [{}] renamed.", torrent_hash);
     Ok(())
 }
 
-pub async fn is_renamed(
-    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
-    torrent_hash: &str,
-) -> Result<bool, sqlx::Error> {
+pub async fn is_renamed(torrent_hash: &str) -> Result<bool, sqlx::Error> {
     let rec = query!(
         r#"SELECT renamed FROM main.download_task WHERE torrent_hash = ?1"#,
         torrent_hash
     )
-    .fetch_one(&mut **tx)
+    .fetch_one(&get_pool().await)
     .await?;
 
     Ok(rec.renamed == 1)

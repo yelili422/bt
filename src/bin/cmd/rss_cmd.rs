@@ -76,7 +76,7 @@ pub async fn execute(subcommand: RssSubcommand) -> anyhow::Result<()> {
                 .enabled(Some(true))
                 .season(season)
                 .build();
-            match rss::add_rss(&rss).await {
+            match rss::store::add_rss(&rss).await {
                 Err(e) => {
                     eprintln!("{:?}", e);
                 }

@@ -1,8 +1,11 @@
 use std::str::FromStr;
 
-use super::{Downloader, DownloaderError, DownloadingTorrent, TaskStatus, TorrentMeta};
 use async_trait::async_trait;
 use qbit_rs::model::{Credential, State};
+
+use crate::downloader::{
+    bittorrent_meta::TorrentMeta, Downloader, DownloaderError, DownloadingTorrent, TaskStatus,
+};
 
 pub struct QBittorrentDownloader {
     api: qbit_rs::Qbit,
@@ -39,19 +42,28 @@ impl Downloader for QBittorrentDownloader {
         let urls = qbit_rs::model::TorrentSource::Urls {
             urls: qbit_rs::model::Sep::from_str(&torrent.url).unwrap(),
         };
-        let qtorrent = qbit_rs::model::AddTorrentArg::builder()
-            .source(urls)
-            .savepath(
-                torrent
-                    .save_path
-                    .clone()
-                    .unwrap_or(String::from("/downloads/bangumi")),
-            )
-            .category(torrent.category.clone().unwrap_or(String::from("Bangumi")))
-            .build();
+
+        let task = qbit_rs::model::AddTorrentArg {
+            source: urls,
+            savepath: torrent.save_path.clone(),
+            cookie: None,
+            category: torrent.category.clone(),
+            tags: None,
+            skip_checking: None,
+            paused: None,
+            root_folder: None,
+            rename: None,
+            up_limit: None,
+            download_limit: None,
+            ratio_limit: None,
+            seeding_time_limit: None,
+            auto_torrent_management: None,
+            sequential_download: None,
+            first_last_piece_priority: None,
+        };
 
         self.api
-            .add_torrent(qtorrent)
+            .add_torrent(task)
             .await
             .map_err(|err| DownloaderError::ClientError(err.to_string()))
     }
@@ -132,8 +144,6 @@ mod tests {
         let downloader = get_downloader().unwrap();
         let torrent = crate::downloader::TorrentMeta::builder()
             .url("https://mikanani.me/Download/20240111/872ab5abd72ea223d2a2e36688cc96f83bb71d42.torrent".to_string())
-            .content_len(Some(1024u64))
-            .pub_date(Some("2021-01-01".to_string()))
             .save_path(Some("/downloads".to_string()))
             .category(Some("Bangumi".to_string()))
             .build();

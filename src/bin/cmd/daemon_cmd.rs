@@ -1,8 +1,10 @@
-use bt::downloader::get_downloader;
-use bt::{checking_download_task, download_rss_feeds, notification, rename_downloaded_files};
+use bt::{
+    download_rss_feeds,
+    downloader::{self, TaskStatus},
+    notification, rename_downloaded_files,
+};
 use clap::{Parser, Subcommand};
 use log::{debug, error};
-use tokio::sync::mpsc;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -41,46 +43,39 @@ pub async fn execute(subcommand: DaemonSubcommand) -> anyhow::Result<()> {
         } => {
             bt::init().await;
 
-            let downloader = get_downloader();
-            let notifier = notification::get_notifier().await;
+            let mut downloader = downloader::DownloadManager::new().await;
+            downloader.add_hook(move |status, torrent| {
+                if status != TaskStatus::Completed {
+                    return;
+                }
 
-            let downloader_rss = downloader.clone();
+                let downloading_path_map = downloading_path_map.clone();
+                let torrent = torrent.clone();
+                let archived_path = archived_path.clone();
+
+                tokio::spawn(async move {
+                    let notifier = notification::get_notifier().await;
+                    if let Err(err) = rename_downloaded_files(
+                        &torrent,
+                        &archived_path,
+                        downloading_path_map.as_deref(),
+                        notifier,
+                    )
+                    .await
+                    {
+                        error!("[cmd] Failed to rename downloaded files: {:?}", err);
+                    }
+                });
+            });
+            downloader.start();
+
             tokio::spawn(async move {
                 loop {
-                    download_rss_feeds(downloader_rss.clone())
-                        .await
-                        .unwrap_or_else(|e| {
-                            error!("[cmd] Failed to fetch RSS feeds: {:?}", e);
-                        });
+                    download_rss_feeds(&downloader).await.unwrap_or_else(|e| {
+                        error!("[cmd] Failed to fetch RSS feeds: {:?}", e);
+                    });
                     debug!("[cmd] Waiting {} seconds for the next update...", interval);
                     tokio::time::sleep(tokio::time::Duration::from_secs(interval)).await;
-                }
-            });
-
-            let (rename_tx, mut rename_rx) = mpsc::channel(64);
-            let downloader_rename = downloader.clone();
-            tokio::spawn(async move {
-                loop {
-                    checking_download_task(downloader_rename.clone(), &rename_tx)
-                        .await
-                        .unwrap_or_else(|e| {
-                            error!("[cmd] Failed to process downloading tasks: {:?}", e);
-                        });
-
-                    tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
-                }
-            });
-
-            tokio::spawn(async move {
-                if let Err(err) = rename_downloaded_files(
-                    &mut rename_rx,
-                    archived_path,
-                    downloading_path_map,
-                    notifier,
-                )
-                .await
-                {
-                    panic!("[cmd] Failed to rename downloaded files: {:?}", err);
                 }
             });
 

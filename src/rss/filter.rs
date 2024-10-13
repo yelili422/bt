@@ -24,6 +24,7 @@ impl Serialize for RssFilter {
     }
 }
 
+#[allow(unused)]
 struct RssFilterVisitor;
 
 impl<'de> Visitor<'de> for RssFilterVisitor {
@@ -164,8 +165,6 @@ mod tests {
                 .url(url.to_string())
                 .category(None)
                 .save_path(None)
-                .pub_date(None)
-                .content_len(None)
                 .build(),
             category: "".to_string(),
         }
